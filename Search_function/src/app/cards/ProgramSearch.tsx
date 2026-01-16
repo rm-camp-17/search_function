@@ -357,12 +357,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     executeSearch(1);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSearch();
-    }
-  };
-
   const addFilter = (field: string, value: string | number | boolean | string[] | number[], operator = 'eq', objectType?: 'program' | 'session' | 'company') => {
     const existingIndex = activeFilters.findIndex(f => f.field === field);
     if (existingIndex >= 0) {
