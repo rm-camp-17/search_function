@@ -160,7 +160,8 @@ interface ExtensionProps {
   context: {
     portal: { id: number };
   };
-  actions: Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  actions: any;
 }
 
 const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
@@ -356,12 +357,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     executeSearch(1);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSearch();
-    }
-  };
-
   const addFilter = (field: string, value: string | number | boolean | string[] | number[], operator = 'eq', objectType?: 'program' | 'session' | 'company') => {
     const existingIndex = activeFilters.findIndex(f => f.field === field);
     if (existingIndex >= 0) {
@@ -464,10 +459,10 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
 
       {/* Step 2: Program Type Selection */}
       <Box>
-        <Text format={{ fontWeight: 'demibold' }}>Step 2: Select Program Type</Text>
         <ToggleGroup
           toggleType="radioButtonList"
           name="programType"
+          label="Step 2: Select Program Type"
           value={selectedProgramType}
           options={[
             { label: 'All Types', value: '' },
@@ -805,7 +800,7 @@ const FilterControl: React.FC<FilterControlProps> = ({
               options={options.map(o => ({ value: o.value, label: o.label }))}
               onChange={(values) => {
                 if (values && values.length > 0) {
-                  onAddFilter(field.field, values, 'in', field.objectType);
+                  onAddFilter(field.field, values as string[], 'in', field.objectType);
                 } else {
                   onRemoveFilter(field.field);
                 }
@@ -927,15 +922,15 @@ const FilterControl: React.FC<FilterControlProps> = ({
             name={field.field}
             label={field.label}
             value={typeof currentFilter?.value === 'string' ? { year: parseInt(currentFilter.value.slice(0, 4)), month: parseInt(currentFilter.value.slice(5, 7)), date: parseInt(currentFilter.value.slice(8, 10)) } : undefined}
-            onChange={(payload) => {
-              if (payload && payload.value) {
+            onChange={(payload: { year?: number; month?: number; date?: number } | null) => {
+              if (payload && payload.year && payload.month && payload.date) {
                 // Determine operator based on field name
                 let operator = 'gte';
                 if (field.field === 'end_date' || field.field.includes('end')) {
                   operator = 'lte';
                 }
                 // Convert to ISO date string for filter value
-                const dateValue = `${payload.value.year}-${String(payload.value.month).padStart(2, '0')}-${String(payload.value.date).padStart(2, '0')}`;
+                const dateValue = `${payload.year}-${String(payload.month).padStart(2, '0')}-${String(payload.date).padStart(2, '0')}`;
                 onAddFilter(field.field, dateValue, operator, field.objectType);
               } else {
                 onRemoveFilter(field.field);
