@@ -26,7 +26,6 @@ import {
   TableBody,
   TableHead,
   TableHeader,
-  Tabs,
   ToggleGroup,
   NumberInput,
   DateInput,
@@ -546,31 +545,34 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
 
       <Divider />
 
-      {/* Tab Navigation */}
-      <Tabs
+      {/* Tab Navigation - Using ToggleGroup for tab selection */}
+      <ToggleGroup
+        name="searchTab"
+        label="Search Mode"
+        toggleType="radioButtonList"
         value={activeTab}
-        onChange={(value: string) => setActiveTab(value as SearchTabId)}
-        tabs={SEARCH_TABS.map(tab => ({
+        options={SEARCH_TABS.map(tab => ({
           value: tab.id,
           label: tab.label,
-          content: (
-            <TabContent
-              tabConfig={tab}
-              schema={schema}
-              searchQuery={searchQuery}
-              selectedCompanies={selectedCompanies}
-              companyOptions={companyOptions}
-              activeFilters={activeFilters}
-              searchResults={searchResults}
-              searching={searching}
-              onSearchQueryChange={setSearchQuery}
-              onSearchSubmit={handleSearch}
-              onCompaniesChange={setSelectedCompanies}
-              onAddFilter={addFilter}
-              onRemoveFilter={removeFilter}
-            />
-          ),
         }))}
+        onChange={(value: string) => setActiveTab(value as SearchTabId)}
+      />
+
+      {/* Tab Content - Rendered separately to avoid serialization issues */}
+      <TabContent
+        tabConfig={tabConfig}
+        schema={schema}
+        searchQuery={searchQuery}
+        selectedCompanies={selectedCompanies}
+        companyOptions={companyOptions}
+        activeFilters={activeFilters}
+        searchResults={searchResults}
+        searching={searching}
+        onSearchQueryChange={setSearchQuery}
+        onSearchSubmit={handleSearch}
+        onCompaniesChange={setSelectedCompanies}
+        onAddFilter={addFilter}
+        onRemoveFilter={removeFilter}
       />
 
       {/* Applied Filters Summary */}
