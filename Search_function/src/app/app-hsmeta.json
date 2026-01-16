@@ -20,7 +20,10 @@
     "permittedUrls": {
       "fetch": [
         "https://api.hubapi.com",
-        "https://camp-experts-search.vercel.app"
+        "https://camp-experts-search.vercel.app",
+        "https://camp-experts-search.vercel.app/api/schema",
+        "https://camp-experts-search.vercel.app/api/search",
+        "https://camp-experts-search.vercel.app/api/cache"
       ],
       "iframe": [],
       "img": []
