@@ -25,10 +25,12 @@ import {
   TableBody,
   TableHead,
   TableHeader,
+  Tabs,
   ToggleGroup,
   NumberInput,
   DateInput,
   MultiSelect,
+  StatusTag,
 } from '@hubspot/ui-extensions';
 import { hubspot } from '@hubspot/ui-extensions';
 
@@ -141,12 +143,84 @@ interface FilterGroup {
   filters: Filter[];
 }
 
+type SearchTabId = 'all' | 'overnight' | 'teen';
+
+interface SearchTabConfig {
+  id: SearchTabId;
+  label: string;
+  description: string;
+  showProgramTypeToggle: boolean;
+  allowedFilterFields?: string[];
+}
+
 // ----------------------------------------------------------------------------
 // Configuration
 // ----------------------------------------------------------------------------
 
 const API_BASE_URL = 'https://camp-experts-search.vercel.app';
 const PORTAL_ID_PLACEHOLDER = '{portalId}';
+
+const SEARCH_TABS: SearchTabConfig[] = [
+  {
+    id: 'all',
+    label: 'Company + Program + Session',
+    description: 'Search across partners, programs, and sessions with flexible filters.',
+    showProgramTypeToggle: true,
+  },
+  {
+    id: 'overnight',
+    label: 'Overnight Camps',
+    description: 'Focus on overnight-specific filters like location, dates, ages, and camp attributes.',
+    showProgramTypeToggle: false,
+    allowedFilterFields: [
+      'region',
+      'locations',
+      'start_date',
+      'end_date',
+      'weeks',
+      'age__min_',
+      'age__max_',
+      'grade_range_min',
+      'grade_range_max',
+      'tuition__current_',
+      'tuition_currency',
+      'primary_camp_type',
+      'camp_subtype',
+      'gender_structure',
+      'is_brother_sister',
+      'programming_philosophy',
+      'accommodations',
+      'sport_options',
+      'arts_options',
+      'education_options',
+    ],
+  },
+  {
+    id: 'teen',
+    label: 'Teen Trips',
+    description: 'Use teen-trip filters like experience, specialty focus, and session logistics.',
+    showProgramTypeToggle: false,
+    allowedFilterFields: [
+      'region',
+      'locations',
+      'start_date',
+      'end_date',
+      'weeks',
+      'age__min_',
+      'age__max_',
+      'grade_range_min',
+      'grade_range_max',
+      'tuition__current_',
+      'tuition_currency',
+      'experience_subtype',
+      'specialty_subtype',
+      'programming_philosophy',
+      'sport_options',
+      'arts_options',
+      'education_options',
+    ],
+  },
+];
 
 // ----------------------------------------------------------------------------
 // Main Extension Component
@@ -179,6 +253,7 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
   const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [companyOptions, setCompanyOptions] = useState<PropertyOption[]>([]);
+  const [activeTab, setActiveTab] = useState<SearchTabId>('all');
 
   // UI state
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
@@ -197,6 +272,15 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       loadSchema(selectedProgramType);
     }
   }, [selectedProgramType]);
+
+  useEffect(() => {
+    setActiveFilters([]);
+    setSelectedCompanies([]);
+    setSelectedProgramType('');
+    setSearchQuery('');
+    setSearchResults(null);
+    setError(null);
+  }, [activeTab]);
 
   const loadSchema = async (programType?: string) => {
     try {
@@ -251,11 +335,11 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       const response = await hubspot.fetch(`${API_BASE_URL}/api/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           page: 1,
           pageSize: 20,
           includeEmptyResults: true,
-        }) as unknown as Record<string, unknown>,
+        },
       });
 
       const data = await response.json();
@@ -326,7 +410,7 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       const response = await hubspot.fetch(`${API_BASE_URL}/api/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody) as unknown as Record<string, unknown>,
+        body: requestBody,
       });
 
       const data = await response.json();
@@ -422,6 +506,8 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     ? Object.values(schema.programProperties.recordTypes)
     : [];
 
+  const tabConfig = SEARCH_TABS.find(tab => tab.id === activeTab) || SEARCH_TABS[0];
+
   return (
     <Flex direction="column" gap="md">
       {/* Header */}
@@ -436,70 +522,90 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
         </Button>
       </Flex>
 
-      {/* Step 1: Company Selection - Primary Filter */}
-      <Box>
-        <Text format={{ fontWeight: 'demibold' }}>Step 1: Select Companies (Partners)</Text>
-        <MultiSelect
-          name="companySelect"
-          label="Companies"
-          placeholder="Select one or more companies..."
-          value={selectedCompanies}
-          options={companyOptions.map(c => ({ value: c.value, label: c.label }))}
-          onChange={(values) => setSelectedCompanies(values as string[])}
-        />
-        {selectedCompanies.length > 0 && (
-          <Flex direction="row" gap="xs" wrap="wrap">
-            <Text>Selected: </Text>
-            {selectedCompanies.map(companyName => (
-              <Tag key={companyName}>{companyName}</Tag>
-            ))}
-          </Flex>
-        )}
-      </Box>
+      <Tabs
+        value={activeTab}
+        onChange={(value: string) => setActiveTab(value as SearchTabId)}
+        tabs={SEARCH_TABS.map(tab => ({
+          value: tab.id,
+          label: tab.label,
+          content: (
+            <Flex direction="column" gap="md">
+              <Flex direction="row" align="center" gap="sm">
+                <Text>{tab.description}</Text>
+                {!tab.showProgramTypeToggle && <StatusTag variant="info">Focused filters</StatusTag>}
+              </Flex>
 
-      {/* Step 2: Program Type Selection */}
-      <Box>
-        <ToggleGroup
-          toggleType="radioButtonList"
-          name="programType"
-          label="Step 2: Select Program Type"
-          value={selectedProgramType}
-          options={[
-            { label: 'All Types', value: '' },
-            ...programTypes.map(pt => ({ label: pt.label, value: pt.value }))
-          ]}
-          onChange={(value: string) => setSelectedProgramType(value)}
-        />
-      </Box>
+              {/* Step 1: Company Selection - Primary Filter */}
+              <Box>
+                <Text format={{ fontWeight: 'demibold' }}>Step 1: Select Companies (Partners)</Text>
+                <MultiSelect
+                  name="companySelect"
+                  label="Companies"
+                  placeholder="Select one or more companies..."
+                  value={selectedCompanies}
+                  options={companyOptions.map(c => ({ value: c.value, label: c.label }))}
+                  onChange={(values) => setSelectedCompanies(values as string[])}
+                />
+                {selectedCompanies.length > 0 && (
+                  <Flex direction="row" gap="xs" wrap="wrap">
+                    <Text>Selected: </Text>
+                    {selectedCompanies.map(companyName => (
+                      <Tag key={companyName}>{companyName}</Tag>
+                    ))}
+                  </Flex>
+                )}
+              </Box>
 
-      {/* Search Input */}
-      <Flex direction="row" gap="sm" align="end">
-        <Box>
-          <Input
-            name="searchQuery"
-            label="Search"
-            placeholder="Search programs, sessions, partners..."
-            value={searchQuery}
-            onChange={(value) => setSearchQuery(value)}
-          />
-        </Box>
-        <Button onClick={handleSearch} disabled={searching}>
-          {searching ? 'Searching...' : 'Search'}
-        </Button>
-      </Flex>
+              {/* Step 2: Program Type Selection */}
+              {tab.showProgramTypeToggle && (
+                <Box>
+                  <ToggleGroup
+                    toggleType="radioButtonList"
+                    name="programType"
+                    label="Step 2: Select Program Type"
+                    value={selectedProgramType}
+                    options={[
+                      { label: 'All Types', value: '' },
+                      ...programTypes.map(pt => ({ label: pt.label, value: pt.value }))
+                    ]}
+                    onChange={(value: string) => setSelectedProgramType(value)}
+                  />
+                </Box>
+              )}
 
-      {/* Filters Panel */}
-      {showFilters && schema && (
-        <FilterPanel
-          schema={schema}
-          programType={selectedProgramType}
-          activeFilters={activeFilters}
-          onAddFilter={addFilter}
-          onRemoveFilter={removeFilter}
-          onClearAll={clearAllFilters}
-          facets={searchResults?.facets}
-        />
-      )}
+              {/* Search Input */}
+              <Flex direction="row" gap="sm" align="end">
+                <Box>
+                  <Input
+                    name="searchQuery"
+                    label="Search"
+                    placeholder="Search programs, sessions, partners..."
+                    value={searchQuery}
+                    onChange={(value) => setSearchQuery(value)}
+                  />
+                </Box>
+                <Button onClick={handleSearch} disabled={searching}>
+                  {searching ? 'Searching...' : 'Search'}
+                </Button>
+              </Flex>
+
+              {/* Filters Panel */}
+              {showFilters && schema && (
+                <FilterPanel
+                  schema={schema}
+                  programType={selectedProgramType}
+                  activeFilters={activeFilters}
+                  onAddFilter={addFilter}
+                  onRemoveFilter={removeFilter}
+                  onClearAll={clearAllFilters}
+                  facets={searchResults?.facets}
+                  allowedFields={tab.allowedFilterFields}
+                />
+              )}
+            </Flex>
+          ),
+        }))}
+      />
 
       {/* Applied Filters Tags */}
       {(selectedCompanies.length > 0 || activeFilters.length > 0) && (
@@ -571,6 +677,7 @@ interface FilterPanelProps {
   onRemoveFilter: (field: string) => void;
   onClearAll: () => void;
   facets?: FacetResult[];
+  allowedFields?: string[];
 }
 
 const FilterPanel: React.FC<FilterPanelProps> = ({
@@ -580,6 +687,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
   onAddFilter,
   onRemoveFilter,
   facets,
+  allowedFields,
 }) => {
   // Get applicable filterable fields
   const filterableFields = schema.filterableFields.filter(f => {
@@ -602,36 +710,38 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
     return true;
   });
 
+  const scopedFields = allowedFields
+    ? filterableFields.filter(field => allowedFields.includes(field.field))
+    : filterableFields;
+
   // Note: Company filters are now handled via the company multi-select at the top
   // We don't show company filters in the filter panel anymore
-  const programFilters = filterableFields.filter(f => f.objectType === 'program');
-  const sessionFilters = filterableFields.filter(f => f.objectType === 'session');
 
   // Organize into logical filter categories for progressive refinement workflows
   // Category 1: Location/Geography - only program and session location fields
   // (company location filters removed - company selection is handled separately)
   const locationFields = ['region', 'locations'];
-  const locationFilters = filterableFields.filter(f => locationFields.includes(f.field));
+  const locationFilters = scopedFields.filter(f => locationFields.includes(f.field));
 
   // Category 2: Program Characteristics (type-specific attributes)
   const programCharFields = ['primary_camp_type', 'camp_subtype', 'experience_subtype', 'specialty_subtype', 'gender_structure', 'is_brother_sister', 'programming_philosophy', 'accommodations'];
-  const programCharFilters = filterableFields.filter(f => programCharFields.includes(f.field));
+  const programCharFilters = scopedFields.filter(f => programCharFields.includes(f.field));
 
   // Category 3: Dates & Duration
   const dateFields = ['start_date', 'end_date', 'weeks'];
-  const dateFilters = filterableFields.filter(f => dateFields.includes(f.field));
+  const dateFilters = scopedFields.filter(f => dateFields.includes(f.field));
 
   // Category 4: Age & Grade (eligibility)
   const eligibilityFields = ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'];
-  const eligibilityFilters = filterableFields.filter(f => eligibilityFields.includes(f.field));
+  const eligibilityFilters = scopedFields.filter(f => eligibilityFields.includes(f.field));
 
   // Category 5: Price & Financial
   const priceFields = ['tuition__current_', 'tuition_currency'];
-  const priceFilters = filterableFields.filter(f => priceFields.includes(f.field));
+  const priceFilters = scopedFields.filter(f => priceFields.includes(f.field));
 
   // Category 6: Activities & Options
   const featureFields = ['sport_options', 'arts_options', 'education_options'];
-  const featureFilters = filterableFields.filter(f => featureFields.includes(f.field));
+  const featureFilters = scopedFields.filter(f => featureFields.includes(f.field));
 
   return (
     <Accordion title="Step 3: Additional Filters" defaultOpen={true}>
