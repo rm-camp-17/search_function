@@ -1,0 +1,55 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": null,
+  "refreshIntervalMs": 3600000,
+  "objects": {
+    "company": {
+      "objectType": "company",
+      "hubspotObjectType": "0-2",
+      "displayName": "Partner",
+      "pluralDisplayName": "Partners",
+      "primaryDisplayProperty": "name",
+      "searchableFields": ["name", "domain", "city", "state", "country"],
+      "linkTemplate": "https://app.hubspot.com/contacts/{portalId}/company/{objectId}"
+    },
+    "program": {
+      "objectType": "program",
+      "hubspotObjectType": "2-36322957",
+      "displayName": "Program",
+      "pluralDisplayName": "Programs",
+      "primaryDisplayProperty": "program_name",
+      "searchableFields": ["program_name", "program_description", "program_highlights"],
+      "linkTemplate": "https://app.hubspot.com/contacts/{portalId}/record/2-36322957/{objectId}"
+    },
+    "session": {
+      "objectType": "session",
+      "hubspotObjectType": "2-36322960",
+      "displayName": "Session",
+      "pluralDisplayName": "Sessions",
+      "primaryDisplayProperty": "session_name",
+      "searchableFields": ["session_name", "session_description"],
+      "linkTemplate": "https://app.hubspot.com/contacts/{portalId}/record/2-36322960/{objectId}"
+    }
+  },
+  "associations": {
+    "company_to_program": {
+      "fromObject": "company",
+      "toObject": "program",
+      "associationTypeId": 1,
+      "direction": "forward"
+    },
+    "program_to_session": {
+      "fromObject": "program",
+      "toObject": "session",
+      "associationTypeId": 1,
+      "direction": "forward"
+    }
+  },
+  "filters": {
+    "primaryFilter": "program_type",
+    "defaultSort": {
+      "field": "session_start_date",
+      "direction": "asc"
+    }
+  }
+}
