@@ -10,6 +10,7 @@ import {
   getCacheStats,
   refreshCache,
   isCacheStale,
+  getAccessToken,
 } from '../lib/cache.js';
 import { loadSchemas } from '../lib/schema.js';
 
@@ -62,28 +63,9 @@ export default async function handler(
   }
 
   if (req.method === 'POST') {
-    // Force cache refresh
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      const response: ApiResponse<null> = {
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Missing or invalid Authorization header',
-        },
-        meta: {
-          requestId,
-          timestamp: new Date().toISOString(),
-          processingTimeMs: Date.now() - startTime,
-        },
-      };
-      res.status(401).json(response);
-      return;
-    }
-
-    const accessToken = authHeader.slice(7);
-
+    // Force cache refresh (uses HUBSPOT_ACCESS_TOKEN env var)
     try {
+      const accessToken = getAccessToken();
       await refreshCache(accessToken);
       const stats = getCacheStats();
 

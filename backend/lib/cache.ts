@@ -30,6 +30,15 @@ const HUBSPOT_API_BASE = 'https://api.hubapi.com';
 const PROGRAM_OBJECT_TYPE = '2-36322957';
 const SESSION_OBJECT_TYPE = '2-36322960';
 
+// Get access token from environment
+export function getAccessToken(): string {
+  const token = process.env.HUBSPOT_ACCESS_TOKEN;
+  if (!token) {
+    throw new Error('HUBSPOT_ACCESS_TOKEN environment variable is not set');
+  }
+  return token;
+}
+
 // ----------------------------------------------------------------------------
 // Cache Access Functions
 // ----------------------------------------------------------------------------

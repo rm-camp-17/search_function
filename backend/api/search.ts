@@ -7,24 +7,24 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SearchRequest, ApiResponse, SearchResponse } from '../types/index.js';
 import { executeSearch } from '../lib/search.js';
 import {
-  getCache,
   isCacheEmpty,
   isCacheStale,
   refreshCache,
-  getCacheStats,
+  getAccessToken,
 } from '../lib/cache.js';
 import { loadSchemas } from '../lib/schema.js';
 
 // Ensure schemas are loaded
 let schemasLoaded = false;
 
-async function ensureInitialized(accessToken: string): Promise<void> {
+async function ensureInitialized(): Promise<void> {
   if (!schemasLoaded) {
     loadSchemas();
     schemasLoaded = true;
   }
 
   if (isCacheEmpty() || isCacheStale()) {
+    const accessToken = getAccessToken();
     await refreshCache(accessToken);
   }
 }
@@ -64,29 +64,8 @@ export default async function handler(
   }
 
   try {
-    // Get access token from Authorization header
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      const response: ApiResponse<null> = {
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Missing or invalid Authorization header',
-        },
-        meta: {
-          requestId,
-          timestamp: new Date().toISOString(),
-          processingTimeMs: Date.now() - startTime,
-        },
-      };
-      res.status(401).json(response);
-      return;
-    }
-
-    const accessToken = authHeader.slice(7);
-
-    // Initialize cache if needed
-    await ensureInitialized(accessToken);
+    // Initialize cache if needed (uses HUBSPOT_ACCESS_TOKEN env var)
+    await ensureInitialized();
 
     // Parse and validate request body
     const searchRequest = req.body as SearchRequest;
