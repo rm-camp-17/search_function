@@ -526,31 +526,31 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
 
   // Organize into logical filter categories for progressive refinement workflows
   // Category 1: Location/Geography (supports multiple workflow entry points)
-  const locationFields = ['program_region', 'program_state', 'program_country', 'state', 'country', 'destinations', 'departure_city'];
+  const locationFields = ['region', 'us_state', 'country_hq', 'locations'];
   const locationFilters = filterableFields.filter(f => locationFields.includes(f.field));
 
   // Category 2: Program Characteristics (type-specific attributes)
-  const programCharFields = ['camp_type', 'trip_type', 'specialty_focus', 'coed_status', 'religious_affiliation', 'accreditation'];
+  const programCharFields = ['primary_camp_type', 'camp_subtype', 'experience_subtype', 'specialty_subtype', 'gender_structure', 'is_brother_sister', 'programming_philosophy', 'accommodations'];
   const programCharFilters = filterableFields.filter(f => programCharFields.includes(f.field));
 
   // Category 3: Dates & Duration
-  const dateFields = ['session_start_date', 'session_end_date', 'session_length_days', 'session_length_weeks', 'session_type'];
+  const dateFields = ['start_date', 'end_date', 'weeks'];
   const dateFilters = filterableFields.filter(f => dateFields.includes(f.field));
 
   // Category 4: Age & Grade (eligibility)
-  const eligibilityFields = ['age_min', 'age_max', 'grade_min', 'grade_max'];
+  const eligibilityFields = ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'];
   const eligibilityFilters = filterableFields.filter(f => eligibilityFields.includes(f.field));
 
   // Category 5: Price & Financial
-  const priceFields = ['tuition', 'tuition_per_week', 'financial_aid_available'];
+  const priceFields = ['tuition__current_', 'tuition_currency'];
   const priceFilters = filterableFields.filter(f => priceFields.includes(f.field));
 
-  // Category 6: Status & Availability
-  const statusFields = ['program_status', 'session_status', 'spots_available', 'lifecyclestage'];
+  // Category 6: Status & Availability (using partner lifecycle stage)
+  const statusFields = ['lifecyclestage'];
   const statusFilters = filterableFields.filter(f => statusFields.includes(f.field));
 
-  // Category 7: Features & Activities
-  const featureFields = ['activities_included', 'special_features', 'kosher_available'];
+  // Category 7: Activities & Options
+  const featureFields = ['sport_options', 'arts_options', 'education_options'];
   const featureFilters = filterableFields.filter(f => featureFields.includes(f.field));
 
   return (
@@ -651,10 +651,10 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
           </Box>
         )}
 
-        {/* Price & Financial Aid */}
+        {/* Price & Tuition */}
         {priceFilters.length > 0 && (
           <Box>
-            <Text format={{ fontWeight: 'medium' }}>Price & Financial Aid</Text>
+            <Text format={{ fontWeight: 'medium' }}>Price & Tuition</Text>
             <Flex direction="row" gap="sm" wrap="wrap">
               {priceFilters.map(field => (
                 <FilterControl
@@ -689,10 +689,10 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
           </Box>
         )}
 
-        {/* Features & Activities */}
+        {/* Activities & Options */}
         {featureFilters.length > 0 && (
           <Box>
-            <Text format={{ fontWeight: 'medium' }}>Features & Activities</Text>
+            <Text format={{ fontWeight: 'medium' }}>Activities & Options</Text>
             <Flex direction="row" gap="sm" wrap="wrap">
               {featureFilters.map(field => (
                 <FilterControl
@@ -831,9 +831,9 @@ const FilterControl: React.FC<FilterControlProps> = ({
               if (value !== undefined && value !== null) {
                 // Determine operator based on field name
                 let operator = 'eq';
-                if (field.field.includes('min') || field.field === 'age_min') {
+                if (field.field.includes('min') || field.field === 'age__min_' || field.field === 'grade_range_min') {
                   operator = 'lte'; // User's child age must be >= session min age
-                } else if (field.field.includes('max') || field.field === 'age_max') {
+                } else if (field.field.includes('max') || field.field === 'age__max_' || field.field === 'grade_range_max') {
                   operator = 'gte'; // User's child age must be <= session max age
                 }
                 onAddFilter(field.field, value, operator, field.objectType);
@@ -857,7 +857,7 @@ const FilterControl: React.FC<FilterControlProps> = ({
               if (value) {
                 // Determine operator based on field name
                 let operator = 'gte';
-                if (field.field.includes('end')) {
+                if (field.field === 'end_date' || field.field.includes('end')) {
                   operator = 'lte';
                 }
                 onAddFilter(field.field, value, operator, field.objectType);
@@ -984,31 +984,29 @@ const ProgramResultTile: React.FC<ProgramResultTileProps> = ({
   const programType = String(program.properties.program_type || '');
   const programTypeLabel = schema?.programProperties?.recordTypes?.[programType]?.label || programType;
   const companyName = company?.properties.name ? String(company.properties.name) : 'Unknown Partner';
+  const shortProgramName = company?.properties.short_program_name ? String(company.properties.short_program_name) : '';
 
-  // Program location (region or state for camps, country for trips)
-  const programRegion = program.properties.program_region ? String(program.properties.program_region) : '';
-  const programState = program.properties.program_state ? String(program.properties.program_state) : '';
-  const programCountry = program.properties.program_country ? String(program.properties.program_country) : '';
-  const programLocation = programState || programRegion || programCountry || '';
+  // Program location (region)
+  const programRegion = program.properties.region ? String(program.properties.region) : '';
 
   // Company (Partner) location info
-  const companyCity = company?.properties.city ? String(company.properties.city) : '';
-  const companyState = company?.properties.state ? String(company.properties.state) : '';
-  const companyCountry = company?.properties.country ? String(company.properties.country) : '';
-  const companyLocation = [companyCity, companyState, companyCountry].filter(Boolean).join(', ');
+  const companyState = company?.properties.us_state ? String(company.properties.us_state) : '';
+  const companyCountry = company?.properties.country_hq ? String(company.properties.country_hq) : '';
+  const companyLocation = [companyState, companyCountry].filter(Boolean).join(', ');
 
   // Partner status
   const partnerStatus = company?.properties.lifecyclestage ? String(company.properties.lifecyclestage) : '';
 
   // Program-type specific attributes
-  const campType = program.properties.camp_type ? String(program.properties.camp_type) : '';
-  const tripType = program.properties.trip_type ? String(program.properties.trip_type) : '';
-  const specialtyFocus = program.properties.specialty_focus ? String(program.properties.specialty_focus) : '';
-  const programSubtype = campType || tripType || specialtyFocus || '';
+  const primaryCampType = program.properties.primary_camp_type ? String(program.properties.primary_camp_type) : '';
+  const campSubtype = program.properties.camp_subtype ? String(program.properties.camp_subtype) : '';
+  const experienceSubtype = program.properties.experience_subtype ? String(program.properties.experience_subtype) : '';
+  const specialtySubtype = program.properties.specialty_subtype ? String(program.properties.specialty_subtype) : '';
+  const programSubtype = campSubtype || experienceSubtype || specialtySubtype || '';
 
-  // Get label for coed status and religious affiliation
-  const coed = program.properties.coed_status ? getOptionDisplayLabel(schema, 'program', 'coed_status', String(program.properties.coed_status)) : '';
-  const religious = program.properties.religious_affiliation ? getOptionDisplayLabel(schema, 'program', 'religious_affiliation', String(program.properties.religious_affiliation)) : '';
+  // Get label for gender structure
+  const genderStructure = program.properties.gender_structure ? getOptionDisplayLabel(schema, 'program', 'gender_structure', String(program.properties.gender_structure)) : '';
+  const isBrotherSister = program.properties.is_brother_sister === true;
 
   return (
     <Tile>
@@ -1040,9 +1038,9 @@ const ProgramResultTile: React.FC<ProgramResultTileProps> = ({
             </Flex>
 
             {/* Program Location */}
-            {programLocation && (
+            {programRegion && (
               <Flex direction="row" gap="sm">
-                <Text>Program Location: {programLocation}</Text>
+                <Text>Region: {formatMultiValue(programRegion)}</Text>
               </Flex>
             )}
           </Flex>
@@ -1063,12 +1061,11 @@ const ProgramResultTile: React.FC<ProgramResultTileProps> = ({
 
         {/* Program Attributes */}
         <Flex direction="row" gap="sm" wrap="wrap">
+          {primaryCampType && <Tag>{formatMultiValue(primaryCampType)}</Tag>}
           {programSubtype && <Tag>{formatMultiValue(programSubtype)}</Tag>}
-          {coed && coed !== 'none' && <Tag>{coed}</Tag>}
-          {religious && religious !== 'none' && religious !== 'Non-denominational' && <Tag>{religious}</Tag>}
-          {program.properties.kosher_available && <Tag>Kosher Available</Tag>}
-          {program.properties.financial_aid_available && <Tag variant="info">Financial Aid</Tag>}
-          {program.properties.accreditation && <Tag variant="success">{formatMultiValue(String(program.properties.accreditation))}</Tag>}
+          {genderStructure && genderStructure !== 'none' && <Tag>{genderStructure}</Tag>}
+          {isBrotherSister && <Tag>Brother/Sister Camp</Tag>}
+          {program.properties.programming_philosophy && <Tag variant="info">{formatMultiValue(String(program.properties.programming_philosophy))}</Tag>}
         </Flex>
 
         {/* Sessions Table (expanded) */}
@@ -1081,8 +1078,8 @@ const ProgramResultTile: React.FC<ProgramResultTileProps> = ({
                   <TableHeader>Session</TableHeader>
                   <TableHeader>Dates</TableHeader>
                   <TableHeader>Ages</TableHeader>
+                  <TableHeader>Weeks</TableHeader>
                   <TableHeader>Tuition</TableHeader>
-                  <TableHeader>Status</TableHeader>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -1121,18 +1118,18 @@ const SessionRow: React.FC<SessionRowProps> = ({ session, buildLink }) => {
   const props = session.properties;
 
   const sessionName = String(props.session_name || 'Unnamed Session');
-  const startDate = props.session_start_date ? formatDate(String(props.session_start_date)) : '';
-  const endDate = props.session_end_date ? formatDate(String(props.session_end_date)) : '';
+  const startDate = props.start_date ? formatDate(String(props.start_date)) : '';
+  const endDate = props.end_date ? formatDate(String(props.end_date)) : '';
   const dateRange = startDate && endDate ? `${startDate} - ${endDate}` : startDate || endDate || 'TBD';
 
-  const ageMin = props.age_min;
-  const ageMax = props.age_max;
+  const ageMin = props.age__min_;
+  const ageMax = props.age__max_;
   const ageRange = ageMin && ageMax ? `${ageMin}-${ageMax}` :
                    ageMin ? `${ageMin}+` :
                    ageMax ? `up to ${ageMax}` : '';
 
-  const tuition = props.tuition ? formatCurrency(Number(props.tuition)) : '';
-  const status = String(props.session_status || '');
+  const tuition = props.tuition__current_ ? formatCurrency(Number(props.tuition__current_)) : '';
+  const weeks = props.weeks ? `${props.weeks} wks` : '';
 
   return (
     <TableRow>
@@ -1143,10 +1140,8 @@ const SessionRow: React.FC<SessionRowProps> = ({ session, buildLink }) => {
       </TableCell>
       <TableCell>{dateRange}</TableCell>
       <TableCell>{ageRange}</TableCell>
+      <TableCell>{weeks}</TableCell>
       <TableCell>{tuition}</TableCell>
-      <TableCell>
-        <Tag>{status || 'Unknown'}</Tag>
-      </TableCell>
     </TableRow>
   );
 };

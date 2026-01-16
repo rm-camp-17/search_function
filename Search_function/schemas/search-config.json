@@ -9,7 +9,7 @@
       "displayName": "Partner",
       "pluralDisplayName": "Partners",
       "primaryDisplayProperty": "name",
-      "searchableFields": ["name", "domain", "city", "state", "country"],
+      "searchableFields": ["name", "short_program_name", "four_sentence_summary_for_parents", "highlights_and_any_concerns_expressed", "programming", "religious_structure", "vibe"],
       "linkTemplate": "https://app.hubspot.com/contacts/{portalId}/company/{objectId}"
     },
     "program": {
@@ -18,7 +18,7 @@
       "displayName": "Program",
       "pluralDisplayName": "Programs",
       "primaryDisplayProperty": "program_name",
-      "searchableFields": ["program_name", "program_description", "program_highlights"],
+      "searchableFields": ["program_name", "description"],
       "linkTemplate": "https://app.hubspot.com/contacts/{portalId}/record/2-36322957/{objectId}"
     },
     "session": {
@@ -27,7 +27,7 @@
       "displayName": "Session",
       "pluralDisplayName": "Sessions",
       "primaryDisplayProperty": "session_name",
-      "searchableFields": ["session_name", "session_description"],
+      "searchableFields": ["session_name", "itinerary", "notes__c"],
       "linkTemplate": "https://app.hubspot.com/contacts/{portalId}/record/2-36322960/{objectId}"
     }
   },
@@ -48,7 +48,7 @@
   "filters": {
     "primaryFilter": "program_type",
     "defaultSort": {
-      "field": "session_start_date",
+      "field": "start_date",
       "direction": "asc"
     }
   }
