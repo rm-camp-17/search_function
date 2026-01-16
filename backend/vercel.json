@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "name": "camp-experts-search",
+  "builds": [
+    {
+      "src": "api/**/*.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/search",
+      "dest": "/api/search.ts"
+    },
+    {
+      "src": "/api/schema",
+      "dest": "/api/schema.ts"
+    },
+    {
+      "src": "/api/cache",
+      "dest": "/api/cache.ts"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}

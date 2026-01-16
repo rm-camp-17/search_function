@@ -1,0 +1,14 @@
+{
+  "uid": "camp_experts_program_search",
+  "type": "card",
+  "config": {
+    "name": "Program & Session Search",
+    "location": "crm.record.tab",
+    "entrypoint": "/app/cards/ProgramSearch.tsx",
+    "objectTypes": [
+      "contacts",
+      "companies",
+      "deals"
+    ]
+  }
+}
