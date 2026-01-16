@@ -32,6 +32,7 @@ import {
   getFieldLabel,
   getProgramSchema,
   getSessionSchema,
+  getCompanySchema,
 } from './schema.js';
 
 // ----------------------------------------------------------------------------
@@ -66,8 +67,13 @@ export function executeSearch(request: SearchRequest): SearchResponse {
     programs = applyFiltersToPrograms(programs, filters, programType);
   }
 
-  // Step 3: For each program, get matching sessions
+  // Step 3: For each program, get matching sessions and apply company filters
   const results: SearchResult[] = [];
+
+  // Extract company filters if any
+  const hasCompanyFilters = filters?.filters.some(f =>
+    f.objectType === 'company' || isCompanyField(f.field)
+  ) ?? false;
 
   for (const program of programs) {
     let sessions = getSessionsForProgram(program.id);
@@ -84,6 +90,19 @@ export function executeSearch(request: SearchRequest): SearchResponse {
     }
 
     const company = getCompanyForProgram(program.id) || null;
+
+    // Apply company-level filters
+    if (hasCompanyFilters && filters) {
+      if (!company) {
+        // If no company associated and we have company filters, skip this program
+        continue;
+      }
+
+      const companyMatches = applyFiltersToCompany(company, filters);
+      if (!companyMatches) {
+        continue;
+      }
+    }
 
     results.push({
       program,
@@ -180,10 +199,30 @@ function applyFiltersToSessions(
   });
 }
 
+function applyFiltersToCompany(
+  company: Company,
+  filterGroup: FilterGroup
+): boolean {
+  // Extract company-level filters
+  const companyFilters = filterGroup.filters.filter(f =>
+    f.objectType === 'company' || isCompanyField(f.field)
+  );
+
+  if (companyFilters.length === 0) {
+    return true;
+  }
+
+  return evaluateFilterGroup(
+    { ...filterGroup, filters: companyFilters },
+    company.properties,
+    'company'
+  );
+}
+
 function evaluateFilterGroup(
   group: FilterGroup,
   properties: Record<string, string | number | boolean | null>,
-  objectType: 'program' | 'session',
+  objectType: 'program' | 'session' | 'company',
   programType?: string
 ): boolean {
   const filterResults = group.filters.map(filter =>
@@ -211,7 +250,7 @@ function evaluateFilterGroup(
 function evaluateFilter(
   filter: Filter,
   properties: Record<string, string | number | boolean | null>,
-  objectType: 'program' | 'session',
+  objectType: 'program' | 'session' | 'company',
   programType?: string
 ): boolean {
   const { field, operator, value } = filter;
@@ -287,6 +326,11 @@ function isProgramField(field: string): boolean {
 
 function isSessionField(field: string): boolean {
   const schema = getSessionSchema();
+  return schema.properties.some(p => p.name === field);
+}
+
+function isCompanyField(field: string): boolean {
+  const schema = getCompanySchema();
   return schema.properties.some(p => p.name === field);
 }
 
@@ -432,6 +476,26 @@ function calculateFacets(
 ): FacetResult[] {
   const facets: FacetResult[] = [];
 
+  // Get facetable fields for companies (Partners)
+  const companyFacetFields = getFacetableFieldsForType('company', programType);
+  for (const field of companyFacetFields) {
+    const values = calculateFacetValues(
+      results,
+      field.field,
+      'company',
+      field.options || [],
+      currentFilters
+    );
+    if (values.length > 0) {
+      facets.push({
+        field: field.field,
+        label: field.label,
+        objectType: 'company',
+        values,
+      });
+    }
+  }
+
   // Get facetable fields for programs
   const programFacetFields = getFacetableFieldsForType('program', programType);
   for (const field of programFacetFields) {
@@ -478,7 +542,7 @@ function calculateFacets(
 function calculateFacetValues(
   results: SearchResult[],
   field: string,
-  objectType: 'program' | 'session',
+  objectType: 'program' | 'session' | 'company',
   schemaOptions: { value: string; label: string }[],
   currentFilters?: FilterGroup
 ): FacetValue[] {
@@ -500,7 +564,12 @@ function calculateFacetValues(
 
   // Count values
   for (const result of results) {
-    if (objectType === 'program') {
+    if (objectType === 'company') {
+      if (result.company) {
+        const value = result.company.properties[field];
+        countFacetValue(valueCounts, value);
+      }
+    } else if (objectType === 'program') {
       const value = result.program.properties[field];
       countFacetValue(valueCounts, value);
     } else {
@@ -575,17 +644,22 @@ function buildAppliedFiltersSummary(filters?: FilterGroup): AppliedFilter[] {
   const applied: AppliedFilter[] = [];
 
   for (const filter of filters.filters) {
-    const objectType = filter.objectType ||
-      (isProgramField(filter.field) ? 'program' : 'session');
+    let objectType: 'program' | 'session' | 'company';
+    if (filter.objectType) {
+      objectType = filter.objectType as 'program' | 'session' | 'company';
+    } else if (isCompanyField(filter.field)) {
+      objectType = 'company';
+    } else if (isProgramField(filter.field)) {
+      objectType = 'program';
+    } else {
+      objectType = 'session';
+    }
 
-    const displayValue = formatFilterDisplayValue(
-      filter,
-      objectType as 'program' | 'session'
-    );
+    const displayValue = formatFilterDisplayValue(filter, objectType);
 
     applied.push({
       field: filter.field,
-      label: getFieldLabel(objectType as 'program' | 'session' | 'company', filter.field),
+      label: getFieldLabel(objectType, filter.field),
       operator: filter.operator,
       value: filter.value,
       displayValue,
@@ -597,7 +671,7 @@ function buildAppliedFiltersSummary(filters?: FilterGroup): AppliedFilter[] {
 
 function formatFilterDisplayValue(
   filter: Filter,
-  objectType: 'program' | 'session'
+  objectType: 'program' | 'session' | 'company'
 ): string {
   const { field, operator, value } = filter;
 
