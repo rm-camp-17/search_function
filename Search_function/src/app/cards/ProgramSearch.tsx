@@ -204,12 +204,27 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
         ? `${API_BASE_URL}/api/schema?programType=${programType}`
         : `${API_BASE_URL}/api/schema`;
 
+      console.log('Fetching schema from:', url);
+
       const response = await hubspot.fetch(url, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
       });
 
-      const data = await response.json();
+      console.log('Schema response status:', response.status);
+
+      // Get raw text first to debug
+      const rawText = await response.text();
+      console.log('Schema raw response length:', rawText.length);
+      console.log('Schema raw response preview:', rawText.substring(0, 200));
+
+      if (!rawText || rawText.length === 0) {
+        setError('Empty response from search service');
+        return;
+      }
+
+      const data = JSON.parse(rawText);
+      console.log('Schema parsed successfully:', data.success);
+
       if (data.success) {
         setSchema(data.data);
         setError(null);
