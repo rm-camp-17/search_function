@@ -160,10 +160,7 @@ interface ExtensionProps {
   context: {
     portal: { id: number };
   };
-  actions: {
-    fetchCrmObjectProperties: (params: { objectType: string; objectId: string; properties: string[] }) => Promise<Record<string, string>>;
-    addAlert: (alert: { type: string; message: string }) => void;
-  };
+  actions: Record<string, unknown>;
 }
 
 const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
@@ -253,11 +250,11 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       const response = await hubspot.fetch(`${API_BASE_URL}/api/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           page: 1,
           pageSize: 20,
           includeEmptyResults: true,
-        }),
+        },
       });
 
       const data = await response.json();
@@ -328,7 +325,7 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       const response = await hubspot.fetch(`${API_BASE_URL}/api/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: requestBody as Record<string, unknown>,
       });
 
       const data = await response.json();
@@ -365,7 +362,7 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     }
   };
 
-  const addFilter = (field: string, value: string | string[], operator = 'eq', objectType?: 'program' | 'session' | 'company') => {
+  const addFilter = (field: string, value: string | number | boolean | string[] | number[], operator = 'eq', objectType?: 'program' | 'session' | 'company') => {
     const existingIndex = activeFilters.findIndex(f => f.field === field);
     if (existingIndex >= 0) {
       // Update existing filter
@@ -426,7 +423,7 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     );
   }
 
-  const programTypes = schema?.programProperties?.recordTypes
+  const programTypes: Array<{ value: string; label: string }> = schema?.programProperties?.recordTypes
     ? Object.values(schema.programProperties.recordTypes)
     : [];
 
@@ -446,14 +443,14 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
 
       {/* Step 1: Company Selection - Primary Filter */}
       <Box>
-        <Text format={{ fontWeight: 'medium' }}>Step 1: Select Companies (Partners)</Text>
+        <Text format={{ fontWeight: 'demibold' }}>Step 1: Select Companies (Partners)</Text>
         <MultiSelect
           name="companySelect"
           label="Companies"
           placeholder="Select one or more companies..."
           value={selectedCompanies}
           options={companyOptions.map(c => ({ value: c.value, label: c.label }))}
-          onChange={(values) => setSelectedCompanies(values)}
+          onChange={(values) => setSelectedCompanies(values as string[])}
         />
         {selectedCompanies.length > 0 && (
           <Flex direction="row" gap="xs" wrap="wrap">
@@ -467,15 +464,16 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
 
       {/* Step 2: Program Type Selection */}
       <Box>
-        <Text format={{ fontWeight: 'medium' }}>Step 2: Select Program Type</Text>
+        <Text format={{ fontWeight: 'demibold' }}>Step 2: Select Program Type</Text>
         <ToggleGroup
+          toggleType="radioButtonList"
           name="programType"
           value={selectedProgramType}
           options={[
             { label: 'All Types', value: '' },
             ...programTypes.map(pt => ({ label: pt.label, value: pt.value }))
           ]}
-          onChange={(value) => setSelectedProgramType(value)}
+          onChange={(value: string) => setSelectedProgramType(value)}
         />
       </Box>
 
@@ -488,7 +486,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
             placeholder="Search programs, sessions, partners..."
             value={searchQuery}
             onChange={(value) => setSearchQuery(value)}
-            onKeyDown={handleKeyDown}
           />
         </Box>
         <Button onClick={handleSearch} disabled={searching}>
@@ -512,7 +509,7 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       {/* Applied Filters Tags */}
       {(selectedCompanies.length > 0 || activeFilters.length > 0) && (
         <Flex direction="row" gap="xs" wrap="wrap">
-          <Text format={{ fontWeight: 'medium' }}>Active Filters:</Text>
+          <Text format={{ fontWeight: 'demibold' }}>Active Filters:</Text>
           {selectedCompanies.length > 0 && (
             <Tag>Companies: {selectedCompanies.length} selected</Tag>
           )}
@@ -575,7 +572,7 @@ interface FilterPanelProps {
   schema: SchemaResponse;
   programType: string;
   activeFilters: Filter[];
-  onAddFilter: (field: string, value: string | string[], operator?: string, objectType?: 'program' | 'session' | 'company') => void;
+  onAddFilter: (field: string, value: string | number | boolean | string[] | number[], operator?: string, objectType?: 'program' | 'session' | 'company') => void;
   onRemoveFilter: (field: string) => void;
   onClearAll: () => void;
   facets?: FacetResult[];
@@ -647,7 +644,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
         {/* Location & Geography */}
         {locationFilters.length > 0 && (
           <Box>
-            <Text format={{ fontWeight: 'medium' }}>Location & Destinations</Text>
+            <Text format={{ fontWeight: 'demibold' }}>Location & Destinations</Text>
             <Flex direction="row" gap="sm" wrap="wrap">
               {locationFilters.map(field => (
                 <FilterControl
@@ -666,7 +663,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
         {/* Program Characteristics */}
         {programCharFilters.length > 0 && (
           <Box>
-            <Text format={{ fontWeight: 'medium' }}>Program Characteristics</Text>
+            <Text format={{ fontWeight: 'demibold' }}>Program Characteristics</Text>
             <Flex direction="row" gap="sm" wrap="wrap">
               {programCharFilters.map(field => (
                 <FilterControl
@@ -685,7 +682,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
         {/* Dates & Duration */}
         {dateFilters.length > 0 && (
           <Box>
-            <Text format={{ fontWeight: 'medium' }}>Dates & Duration</Text>
+            <Text format={{ fontWeight: 'demibold' }}>Dates & Duration</Text>
             <Flex direction="row" gap="sm" wrap="wrap">
               {dateFilters.map(field => (
                 <FilterControl
@@ -704,7 +701,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
         {/* Age & Grade Eligibility */}
         {eligibilityFilters.length > 0 && (
           <Box>
-            <Text format={{ fontWeight: 'medium' }}>Age & Grade Eligibility</Text>
+            <Text format={{ fontWeight: 'demibold' }}>Age & Grade Eligibility</Text>
             <Flex direction="row" gap="sm" wrap="wrap">
               {eligibilityFilters.map(field => (
                 <FilterControl
@@ -723,7 +720,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
         {/* Price & Tuition */}
         {priceFilters.length > 0 && (
           <Box>
-            <Text format={{ fontWeight: 'medium' }}>Price & Tuition</Text>
+            <Text format={{ fontWeight: 'demibold' }}>Price & Tuition</Text>
             <Flex direction="row" gap="sm" wrap="wrap">
               {priceFilters.map(field => (
                 <FilterControl
@@ -742,7 +739,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
         {/* Activities & Options */}
         {featureFilters.length > 0 && (
           <Box>
-            <Text format={{ fontWeight: 'medium' }}>Activities & Options</Text>
+            <Text format={{ fontWeight: 'demibold' }}>Activities & Options</Text>
             <Flex direction="row" gap="sm" wrap="wrap">
               {featureFilters.map(field => (
                 <FilterControl
@@ -770,7 +767,7 @@ interface FilterControlProps {
   field: FilterableField;
   activeFilters: Filter[];
   facets?: FacetResult[];
-  onAddFilter: (field: string, value: string | string[], operator?: string, objectType?: 'program' | 'session' | 'company') => void;
+  onAddFilter: (field: string, value: string | number | boolean | string[] | number[], operator?: string, objectType?: 'program' | 'session' | 'company') => void;
   onRemoveFilter: (field: string) => void;
 }
 
@@ -929,15 +926,17 @@ const FilterControl: React.FC<FilterControlProps> = ({
           <DateInput
             name={field.field}
             label={field.label}
-            value={currentFilter?.value as number || undefined}
-            onChange={(value) => {
-              if (value) {
+            value={typeof currentFilter?.value === 'string' ? { year: parseInt(currentFilter.value.slice(0, 4)), month: parseInt(currentFilter.value.slice(5, 7)), date: parseInt(currentFilter.value.slice(8, 10)) } : undefined}
+            onChange={(payload) => {
+              if (payload && payload.value) {
                 // Determine operator based on field name
                 let operator = 'gte';
                 if (field.field === 'end_date' || field.field.includes('end')) {
                   operator = 'lte';
                 }
-                onAddFilter(field.field, value, operator, field.objectType);
+                // Convert to ISO date string for filter value
+                const dateValue = `${payload.value.year}-${String(payload.value.month).padStart(2, '0')}-${String(payload.value.date).padStart(2, '0')}`;
+                onAddFilter(field.field, dateValue, operator, field.objectType);
               } else {
                 onRemoveFilter(field.field);
               }
@@ -1104,12 +1103,12 @@ const ProgramResultTile: React.FC<ProgramResultTileProps> = ({
             <Flex direction="row" gap="sm" align="center">
               {company && (
                 <>
-                  <Text format={{ fontWeight: 'medium' }}>Partner:</Text>
+                  <Text format={{ fontWeight: 'demibold' }}>Partner:</Text>
                   <Link href={buildLink('company', company.id)}>
                     <Text>{companyName}</Text>
                   </Link>
                   {companyLocation && <Text>({companyLocation})</Text>}
-                  {partnerStatus === 'customer' && <Tag variant="success" size="sm">Active Partner</Tag>}
+                  {partnerStatus === 'customer' && <Tag variant="success">Active Partner</Tag>}
                 </>
               )}
             </Flex>
