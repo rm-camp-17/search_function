@@ -172,24 +172,29 @@ export async function refreshCache(accessToken: string): Promise<void> {
 
   try {
     // Define properties to fetch for each object type
+    // These match the actual HubSpot schema properties
     const companyProperties = [
-      'name', 'domain', 'city', 'state', 'country', 'phone', 'lifecyclestage',
+      'name', 'short_program_name', 'domain', 'email', 'phone', 'phone_2',
+      'country_hq', 'us_state', 'four_sentence_summary_for_parents',
+      'highlights_and_any_concerns_expressed', 'programming', 'religious_structure',
+      'vibe', 'territory', 'commission_rate', 'commission_type', 'commission_basis',
+      'commission_structure___summary', 'companyid', 'provider_ext_id_salesforce',
+      'website_for_recommendation_entry', 'tfs_weeks', 'session_weeks', 'lifecyclestage',
     ];
 
     const programProperties = [
-      'program_name', 'program_type', 'program_status', 'program_description',
-      'program_highlights', 'program_region', 'program_state', 'program_country',
-      'camp_type', 'trip_type', 'coed_status', 'religious_affiliation',
-      'accreditation', 'specialty_focus', 'kosher_available',
-      'financial_aid_available', 'website_url',
+      'program_name', 'program_id', 'program_type', 'description',
+      'primary_camp_type', 'camp_subtype', 'experience_subtype', 'specialty_subtype',
+      'region', 'gender_structure', 'brother_sister', 'is_brother_sister',
+      'programming_philosophy', 'accommodations', 'provider_id_external_',
     ];
 
     const sessionProperties = [
-      'session_name', 'session_status', 'session_start_date', 'session_end_date',
-      'session_length_days', 'session_length_weeks', 'age_min', 'age_max',
-      'grade_min', 'grade_max', 'tuition', 'tuition_per_week', 'session_type',
-      'destinations', 'activities_included', 'departure_city', 'supervision_ratio',
-      'spots_available', 'session_description', 'special_features',
+      'session_name', 'session_id', 'start_date', 'end_date', 'weeks',
+      'age__min_', 'age__max_', 'grade_range_min', 'grade_range_max',
+      'tuition__current_', 'tuition_currency', 'program_type', 'primary_camp_type',
+      'experience_subtype', 'specialty_subtype', 'locations', 'sport_options',
+      'arts_options', 'education_options', 'itinerary', 'notes__c', 'program_id__external_',
     ];
 
     // Fetch all data in parallel
@@ -294,7 +299,7 @@ function parseProgramProperties(
     }
 
     // Handle boolean fields
-    if (['kosher_available', 'financial_aid_available'].includes(key)) {
+    if (['is_brother_sister'].includes(key)) {
       parsed[key] = value === 'true' || value === 'yes' || value === '1';
       continue;
     }
@@ -311,8 +316,8 @@ function parseSessionProperties(
   const parsed: Record<string, string | number | boolean | null> = {};
 
   const numericFields = [
-    'session_length_days', 'session_length_weeks', 'age_min', 'age_max',
-    'tuition', 'tuition_per_week', 'spots_available',
+    'weeks', 'age__min_', 'age__max_', 'grade_range_min', 'grade_range_max',
+    'tuition__current_',
   ];
 
   for (const [key, value] of Object.entries(props)) {
@@ -329,7 +334,7 @@ function parseSessionProperties(
     }
 
     // Parse date fields (keep as ISO strings)
-    if (['session_start_date', 'session_end_date'].includes(key)) {
+    if (['start_date', 'end_date'].includes(key)) {
       parsed[key] = value;
       continue;
     }
