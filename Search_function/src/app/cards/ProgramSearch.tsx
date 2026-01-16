@@ -9,6 +9,7 @@ import {
   Flex,
   Box,
   Text,
+  Input,
   Select,
   Button,
   Link,
@@ -31,14 +32,8 @@ import {
   DateInput,
   MultiSelect,
   StatusTag,
-  Statistics,
-  StepIndicator,
-  SearchInput,
   DescriptionList,
   DescriptionListItem,
-  Icon,
-  Heading,
-  ProgressBar,
 } from '@hubspot/ui-extensions';
 import { hubspot } from '@hubspot/ui-extensions';
 
@@ -162,195 +157,57 @@ interface SearchTabConfig {
   label: string;
   shortLabel: string;
   description: string;
-  icon: string;
-  programTypes: string[];  // Which program_type values to filter by
+  programTypes: string[];
   filterCategories: FilterCategoryConfig[];
-  colorVariant: 'default' | 'success' | 'warning' | 'danger' | 'info';
 }
 
 interface FilterCategoryConfig {
   title: string;
-  icon: string;
   fields: string[];
   defaultOpen?: boolean;
 }
 
 // Overnight Camps - Traditional residential camp experiences
 const OVERNIGHT_FILTERS: FilterCategoryConfig[] = [
-  {
-    title: 'Location & Region',
-    icon: 'location',
-    fields: ['region'],
-    defaultOpen: true,
-  },
-  {
-    title: 'Camp Type & Structure',
-    icon: 'settings',
-    fields: ['primary_camp_type', 'camp_subtype', 'gender_structure', 'is_brother_sister'],
-    defaultOpen: true,
-  },
-  {
-    title: 'Dates & Duration',
-    icon: 'calendar',
-    fields: ['start_date', 'end_date', 'weeks'],
-    defaultOpen: false,
-  },
-  {
-    title: 'Age & Grade',
-    icon: 'user',
-    fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'],
-    defaultOpen: true,
-  },
-  {
-    title: 'Tuition & Cost',
-    icon: 'currency',
-    fields: ['tuition__current_'],
-    defaultOpen: false,
-  },
-  {
-    title: 'Activities & Features',
-    icon: 'activity',
-    fields: ['sport_options', 'arts_options', 'education_options', 'accommodations'],
-    defaultOpen: false,
-  },
-  {
-    title: 'Philosophy & Culture',
-    icon: 'bookmark',
-    fields: ['programming_philosophy'],
-    defaultOpen: false,
-  },
+  { title: 'Location & Region', fields: ['region'], defaultOpen: true },
+  { title: 'Camp Type & Structure', fields: ['primary_camp_type', 'camp_subtype', 'gender_structure', 'is_brother_sister'], defaultOpen: true },
+  { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: false },
+  { title: 'Age & Grade', fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'], defaultOpen: true },
+  { title: 'Tuition & Cost', fields: ['tuition__current_'], defaultOpen: false },
+  { title: 'Activities & Features', fields: ['sport_options', 'arts_options', 'education_options', 'accommodations'], defaultOpen: false },
+  { title: 'Philosophy & Culture', fields: ['programming_philosophy'], defaultOpen: false },
 ];
 
 // Specialty Programs - Arts, sports, academic focused
 const SPECIALTY_FILTERS: FilterCategoryConfig[] = [
-  {
-    title: 'Specialty Focus',
-    icon: 'star',
-    fields: ['specialty_subtype', 'primary_camp_type'],
-    defaultOpen: true,
-  },
-  {
-    title: 'Location & Region',
-    icon: 'location',
-    fields: ['region'],
-    defaultOpen: true,
-  },
-  {
-    title: 'Dates & Duration',
-    icon: 'calendar',
-    fields: ['start_date', 'end_date', 'weeks'],
-    defaultOpen: false,
-  },
-  {
-    title: 'Age & Grade',
-    icon: 'user',
-    fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'],
-    defaultOpen: true,
-  },
-  {
-    title: 'Tuition & Cost',
-    icon: 'currency',
-    fields: ['tuition__current_'],
-    defaultOpen: false,
-  },
-  {
-    title: 'Specific Activities',
-    icon: 'activity',
-    fields: ['sport_options', 'arts_options', 'education_options'],
-    defaultOpen: true,
-  },
+  { title: 'Specialty Focus', fields: ['specialty_subtype', 'primary_camp_type'], defaultOpen: true },
+  { title: 'Location & Region', fields: ['region'], defaultOpen: true },
+  { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: false },
+  { title: 'Age & Grade', fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'], defaultOpen: true },
+  { title: 'Tuition & Cost', fields: ['tuition__current_'], defaultOpen: false },
+  { title: 'Specific Activities', fields: ['sport_options', 'arts_options', 'education_options'], defaultOpen: true },
 ];
 
 // Teen Trips & Gap Year - Travel and adventure experiences
 const TEEN_FILTERS: FilterCategoryConfig[] = [
-  {
-    title: 'Experience Type',
-    icon: 'globe',
-    fields: ['experience_subtype', 'programming_philosophy'],
-    defaultOpen: true,
-  },
-  {
-    title: 'Destinations & Locations',
-    icon: 'location',
-    fields: ['region', 'locations'],
-    defaultOpen: true,
-  },
-  {
-    title: 'Dates & Duration',
-    icon: 'calendar',
-    fields: ['start_date', 'end_date', 'weeks'],
-    defaultOpen: true,
-  },
-  {
-    title: 'Age & Grade',
-    icon: 'user',
-    fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'],
-    defaultOpen: true,
-  },
-  {
-    title: 'Tuition & Cost',
-    icon: 'currency',
-    fields: ['tuition__current_'],
-    defaultOpen: false,
-  },
-  {
-    title: 'Accommodations',
-    icon: 'home',
-    fields: ['accommodations'],
-    defaultOpen: false,
-  },
+  { title: 'Experience Type', fields: ['experience_subtype', 'programming_philosophy'], defaultOpen: true },
+  { title: 'Destinations & Locations', fields: ['region', 'locations'], defaultOpen: true },
+  { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: true },
+  { title: 'Age & Grade', fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'], defaultOpen: true },
+  { title: 'Tuition & Cost', fields: ['tuition__current_'], defaultOpen: false },
+  { title: 'Accommodations', fields: ['accommodations'], defaultOpen: false },
 ];
 
 // Other/Browse All - Family camp and comprehensive search
 const OTHER_FILTERS: FilterCategoryConfig[] = [
-  {
-    title: 'Program Type',
-    icon: 'filter',
-    fields: ['program_type'],
-    defaultOpen: true,
-  },
-  {
-    title: 'Location & Region',
-    icon: 'location',
-    fields: ['region', 'locations'],
-    defaultOpen: true,
-  },
-  {
-    title: 'Program Characteristics',
-    icon: 'settings',
-    fields: ['primary_camp_type', 'camp_subtype', 'experience_subtype', 'specialty_subtype', 'gender_structure'],
-    defaultOpen: false,
-  },
-  {
-    title: 'Dates & Duration',
-    icon: 'calendar',
-    fields: ['start_date', 'end_date', 'weeks'],
-    defaultOpen: false,
-  },
-  {
-    title: 'Age & Grade',
-    icon: 'user',
-    fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'],
-    defaultOpen: false,
-  },
-  {
-    title: 'Tuition & Cost',
-    icon: 'currency',
-    fields: ['tuition__current_'],
-    defaultOpen: false,
-  },
-  {
-    title: 'Activities & Features',
-    icon: 'activity',
-    fields: ['sport_options', 'arts_options', 'education_options', 'accommodations'],
-    defaultOpen: false,
-  },
-  {
-    title: 'Philosophy & Culture',
-    icon: 'bookmark',
-    fields: ['programming_philosophy', 'is_brother_sister'],
-    defaultOpen: false,
-  },
+  { title: 'Program Type', fields: ['program_type'], defaultOpen: true },
+  { title: 'Location & Region', fields: ['region', 'locations'], defaultOpen: true },
+  { title: 'Program Characteristics', fields: ['primary_camp_type', 'camp_subtype', 'experience_subtype', 'specialty_subtype', 'gender_structure'], defaultOpen: false },
+  { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: false },
+  { title: 'Age & Grade', fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'], defaultOpen: false },
+  { title: 'Tuition & Cost', fields: ['tuition__current_'], defaultOpen: false },
+  { title: 'Activities & Features', fields: ['sport_options', 'arts_options', 'education_options', 'accommodations'], defaultOpen: false },
+  { title: 'Philosophy & Culture', fields: ['programming_philosophy', 'is_brother_sister'], defaultOpen: false },
 ];
 
 const SEARCH_TABS: SearchTabConfig[] = [
@@ -359,40 +216,32 @@ const SEARCH_TABS: SearchTabConfig[] = [
     label: 'Overnight Camps',
     shortLabel: 'Overnight',
     description: 'Traditional sleepaway and day camp experiences with residential options.',
-    icon: 'tent',
     programTypes: ['overnight_camp', 'day_camp'],
     filterCategories: OVERNIGHT_FILTERS,
-    colorVariant: 'success',
   },
   {
     id: 'specialty',
     label: 'Specialty Programs',
     shortLabel: 'Specialty',
     description: 'Focused programs for arts, sports, academics, and special interests.',
-    icon: 'star',
     programTypes: ['specialty_program'],
     filterCategories: SPECIALTY_FILTERS,
-    colorVariant: 'warning',
   },
   {
     id: 'teen',
     label: 'Teen Trips & Gap Year',
     shortLabel: 'Teen/Gap',
     description: 'Travel adventures, gap year programs, and teen experiences worldwide.',
-    icon: 'globe',
     programTypes: ['teen_trip', 'gap_year'],
     filterCategories: TEEN_FILTERS,
-    colorVariant: 'info',
   },
   {
     id: 'other',
     label: 'Browse All Programs',
     shortLabel: 'All',
     description: 'Search across all program types including family camps and specialized offerings.',
-    icon: 'search',
-    programTypes: [], // Empty means all types
+    programTypes: [],
     filterCategories: OTHER_FILTERS,
-    colorVariant: 'default',
   },
 ];
 
@@ -402,13 +251,6 @@ const SEARCH_TABS: SearchTabConfig[] = [
 
 const API_BASE_URL = 'https://camp-experts-search.vercel.app';
 const PORTAL_ID_PLACEHOLDER = '{portalId}';
-
-// Search workflow steps
-const SEARCH_STEPS = [
-  { label: 'Select Partner', stepId: 'partner' },
-  { label: 'Set Filters', stepId: 'filters' },
-  { label: 'View Results', stepId: 'results' },
-];
 
 // ----------------------------------------------------------------------------
 // Main Extension Component
@@ -444,7 +286,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
 
   // UI state
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
-  const [currentStep, setCurrentStep] = useState(0);
 
   const portalId = context.portal.id;
   const tabConfig = SEARCH_TABS.find(tab => tab.id === activeTab) || SEARCH_TABS[0];
@@ -470,20 +311,8 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     setSearchQuery('');
     setSearchResults(null);
     setError(null);
-    setCurrentStep(0);
     setExpandedPrograms(new Set());
   }, [activeTab]);
-
-  // Update current step based on state
-  useEffect(() => {
-    if (searchResults && searchResults.totalCount > 0) {
-      setCurrentStep(2);
-    } else if (activeFilters.length > 0 || selectedCompanies.length > 0) {
-      setCurrentStep(1);
-    } else {
-      setCurrentStep(0);
-    }
-  }, [searchResults, activeFilters, selectedCompanies]);
 
   const loadSchema = async (programType?: string) => {
     try {
@@ -509,7 +338,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
         setSchema(data.data);
         setError(null);
 
-        // Trigger initial search to get company facets
         if (!programType) {
           loadCompanyOptions();
         }
@@ -569,7 +397,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     try {
       const allFilters: Filter[] = [...activeFilters];
 
-      // Add company filter if companies are selected
       if (selectedCompanies.length > 0) {
         allFilters.push({
           field: 'name',
@@ -584,12 +411,10 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
         filters: allFilters,
       };
 
-      // Determine program type filter based on tab
       let programTypeFilter: string | undefined = undefined;
       if (tabConfig.programTypes.length === 1) {
         programTypeFilter = tabConfig.programTypes[0];
       } else if (tabConfig.programTypes.length > 1) {
-        // For multiple program types, add them as an 'in' filter
         allFilters.push({
           field: 'program_type',
           operator: 'in',
@@ -629,7 +454,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     }
   }, [schema, searchQuery, activeFilters, selectedCompanies, tabConfig]);
 
-  // Auto-search when filters change
   useEffect(() => {
     if (schema && (selectedCompanies.length > 0 || activeFilters.length > 0)) {
       executeSearch(1);
@@ -637,14 +461,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
   }, [selectedCompanies, activeFilters, schema]);
 
   const handleSearch = () => {
-    executeSearch(1);
-  };
-
-  const handleSearchQueryChange = (value: string) => {
-    setSearchQuery(value);
-  };
-
-  const handleSearchSubmit = () => {
     executeSearch(1);
   };
 
@@ -668,7 +484,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     setSelectedCompanies([]);
     setSearchQuery('');
     setSearchResults(null);
-    setCurrentStep(0);
   };
 
   const toggleProgramExpanded = (programId: string) => {
@@ -687,15 +502,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     return template
       .replace(PORTAL_ID_PLACEHOLDER, String(portalId))
       .replace('{objectId}', objectId);
-  };
-
-  // Get all allowed fields for current tab
-  const getAllowedFields = (): string[] => {
-    const allFields: string[] = [];
-    tabConfig.filterCategories.forEach(category => {
-      allFields.push(...category.fields);
-    });
-    return allFields;
   };
 
   // Loading state
@@ -720,42 +526,23 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     );
   }
 
-  // Calculate statistics for display
   const totalPrograms = searchResults?.totalCount || 0;
   const totalSessions = searchResults?.results?.reduce((acc, r) => acc + r.matchingSessionCount, 0) || 0;
   const activeFilterCount = activeFilters.length + (selectedCompanies.length > 0 ? 1 : 0);
 
   return (
     <Flex direction="column" gap="md">
-      {/* Header with Title and Stats */}
+      {/* Header */}
       <Flex direction="row" justify="between" align="center">
-        <Heading>Camp & Program Search</Heading>
+        <Text format={{ fontWeight: 'bold' }}>Camp & Program Search</Text>
         {searchResults && (
-          <Statistics
-            items={[
-              {
-                label: 'Programs',
-                number: totalPrograms.toString(),
-              },
-              {
-                label: 'Sessions',
-                number: totalSessions.toString(),
-              },
-              {
-                label: 'Filters',
-                number: activeFilterCount.toString(),
-              },
-            ]}
-          />
+          <Flex direction="row" gap="md">
+            <Tag>{totalPrograms} programs</Tag>
+            <Tag>{totalSessions} sessions</Tag>
+            {activeFilterCount > 0 && <Tag variant="warning">{activeFilterCount} filters</Tag>}
+          </Flex>
         )}
       </Flex>
-
-      {/* Search Progress Indicator */}
-      <StepIndicator
-        currentStep={currentStep}
-        stepNames={SEARCH_STEPS.map(s => s.label)}
-        variant="default"
-      />
 
       <Divider />
 
@@ -776,16 +563,11 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
               activeFilters={activeFilters}
               searchResults={searchResults}
               searching={searching}
-              expandedPrograms={expandedPrograms}
-              onSearchQueryChange={handleSearchQueryChange}
-              onSearchSubmit={handleSearchSubmit}
+              onSearchQueryChange={setSearchQuery}
+              onSearchSubmit={handleSearch}
               onCompaniesChange={setSelectedCompanies}
               onAddFilter={addFilter}
               onRemoveFilter={removeFilter}
-              onClearAll={clearAllFilters}
-              onToggleExpand={toggleProgramExpanded}
-              onPageChange={(page) => executeSearch(page)}
-              buildLink={buildHubSpotLink}
             />
           ),
         }))}
@@ -804,7 +586,7 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
             <Flex direction="row" gap="xs" wrap="wrap">
               {selectedCompanies.length > 0 && (
                 <Tag variant="default" onClick={() => setSelectedCompanies([])}>
-                  Partners: {selectedCompanies.length} selected ✕
+                  Partners: {selectedCompanies.length} selected
                 </Tag>
               )}
               {activeFilters.map((filter, idx) => (
@@ -813,7 +595,7 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
                   variant="default"
                   onClick={() => removeFilter(filter.field)}
                 >
-                  {getFilterLabel(schema, filter)} ✕
+                  {getFilterLabel(schema, filter)}
                 </Tag>
               ))}
             </Flex>
@@ -832,13 +614,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       {searching && (
         <Flex direction="column" align="center" justify="center" gap="md">
           <LoadingSpinner label="Searching..." />
-          <ProgressBar
-            title="Searching programs..."
-            variant="info"
-            maxValue={100}
-            value={50}
-            showPercentage={false}
-          />
         </Flex>
       )}
 
@@ -903,16 +678,11 @@ interface TabContentProps {
   activeFilters: Filter[];
   searchResults: SearchResponse | null;
   searching: boolean;
-  expandedPrograms: Set<string>;
   onSearchQueryChange: (value: string) => void;
   onSearchSubmit: () => void;
   onCompaniesChange: (companies: string[]) => void;
   onAddFilter: (field: string, value: string | number | boolean | string[] | number[], operator?: string, objectType?: 'program' | 'session' | 'company') => void;
   onRemoveFilter: (field: string) => void;
-  onClearAll: () => void;
-  onToggleExpand: (programId: string) => void;
-  onPageChange: (page: number) => void;
-  buildLink: (objectType: 'program' | 'session' | 'company', objectId: string) => string;
 }
 
 const TabContent: React.FC<TabContentProps> = ({
@@ -929,15 +699,12 @@ const TabContent: React.FC<TabContentProps> = ({
   onCompaniesChange,
   onAddFilter,
   onRemoveFilter,
-  buildLink,
 }) => {
   return (
     <Flex direction="column" gap="md">
       {/* Tab Description */}
       <Flex direction="row" align="center" gap="sm">
-        <StatusTag variant={tabConfig.colorVariant}>
-          {tabConfig.shortLabel}
-        </StatusTag>
+        <StatusTag variant="info">{tabConfig.shortLabel}</StatusTag>
         <Text>{tabConfig.description}</Text>
       </Flex>
 
@@ -947,13 +714,12 @@ const TabContent: React.FC<TabContentProps> = ({
           <Text format={{ fontWeight: 'bold' }}>Quick Search</Text>
           <Flex direction="row" gap="sm" align="end">
             <Box>
-              <SearchInput
+              <Input
                 name="searchQuery"
                 label="Search programs, sessions, partners..."
                 placeholder="Type to search..."
                 value={searchQuery}
                 onChange={onSearchQueryChange}
-                onEnter={onSearchSubmit}
               />
             </Box>
             <Button onClick={onSearchSubmit} disabled={searching}>
@@ -969,7 +735,7 @@ const TabContent: React.FC<TabContentProps> = ({
           <Flex direction="row" align="center" gap="xs">
             <Text format={{ fontWeight: 'bold' }}>Step 1: Select Partners</Text>
             {selectedCompanies.length > 0 && (
-              <StatusTag variant="success">{selectedCompanies.length} selected</StatusTag>
+              <Tag variant="success">{selectedCompanies.length} selected</Tag>
             )}
           </Flex>
           <MultiSelect
@@ -1000,7 +766,7 @@ const TabContent: React.FC<TabContentProps> = ({
             <Flex direction="row" align="center" gap="xs">
               <Text format={{ fontWeight: 'bold' }}>Step 2: Refine with Filters</Text>
               {activeFilters.length > 0 && (
-                <StatusTag variant="info">{activeFilters.length} active</StatusTag>
+                <Tag variant="warning">{activeFilters.length} active</Tag>
               )}
             </Flex>
 
@@ -1024,7 +790,7 @@ const TabContent: React.FC<TabContentProps> = ({
 };
 
 // ----------------------------------------------------------------------------
-// Filter Category Component (Accordion-based)
+// Filter Category Component
 // ----------------------------------------------------------------------------
 
 interface FilterCategoryProps {
@@ -1046,16 +812,13 @@ const FilterCategory: React.FC<FilterCategoryProps> = ({
   onRemoveFilter,
   tabProgramTypes,
 }) => {
-  // Get applicable filterable fields for this category
   const categoryFields = schema.filterableFields.filter(f => {
     if (!category.fields.includes(f.field)) return false;
 
-    // Skip program_type unless explicitly in category
     if (f.field === 'program_type' && !category.fields.includes('program_type')) {
       return false;
     }
 
-    // Check record type applicability
     if (f.applicableRecordTypes && tabProgramTypes.length > 0) {
       const hasMatch = tabProgramTypes.some(pt =>
         f.applicableRecordTypes!.includes('*') || f.applicableRecordTypes!.includes(pt)
@@ -1073,10 +836,8 @@ const FilterCategory: React.FC<FilterCategoryProps> = ({
     return true;
   });
 
-  // Don't render empty categories
   if (categoryFields.length === 0) return null;
 
-  // Count active filters in this category
   const activeCount = activeFilters.filter(f => category.fields.includes(f.field)).length;
   const titleWithCount = activeCount > 0
     ? `${category.title} (${activeCount} active)`
@@ -1122,7 +883,6 @@ const FilterControl: React.FC<FilterControlProps> = ({
   const currentFilter = activeFilters.find(f => f.field === field.field);
   const facet = facets?.find(f => f.field === field.field);
 
-  // Get options - prefer facet values if available for counts
   const options = facet?.values?.map(v => ({
     value: v.value,
     label: `${v.label} (${v.count})`,
@@ -1130,7 +890,6 @@ const FilterControl: React.FC<FilterControlProps> = ({
 
   switch (field.type) {
     case 'enumeration':
-      // Use MultiSelect for multi-select fields
       if (field.multiSelect) {
         const currentValues = Array.isArray(currentFilter?.value)
           ? currentFilter.value as string[]
@@ -1156,7 +915,6 @@ const FilterControl: React.FC<FilterControlProps> = ({
         );
       }
 
-      // Regular single-select dropdown
       return (
         <Box>
           <Select
@@ -1202,7 +960,6 @@ const FilterControl: React.FC<FilterControlProps> = ({
       );
 
     case 'number':
-      // For numeric fields with buckets, show as select
       if (field.buckets && field.buckets.length > 0) {
         return (
           <Box>
@@ -1235,7 +992,6 @@ const FilterControl: React.FC<FilterControlProps> = ({
         );
       }
 
-      // Default number input
       return (
         <Box>
           <NumberInput
@@ -1330,12 +1086,8 @@ const SearchResultsPanel: React.FC<SearchResultsPanelProps> = ({
             </Text>
           </Flex>
           <Flex direction="row" align="center" gap="sm">
-            <StatusTag variant={tabConfig.colorVariant}>
-              {tabConfig.shortLabel}
-            </StatusTag>
-            <Text>
-              Page {results.page} of {results.totalPages}
-            </Text>
+            <StatusTag variant="info">{tabConfig.shortLabel}</StatusTag>
+            <Text>Page {results.page} of {results.totalPages}</Text>
           </Flex>
         </Flex>
       </Tile>
@@ -1362,7 +1114,7 @@ const SearchResultsPanel: React.FC<SearchResultsPanelProps> = ({
               disabled={results.page <= 1}
               onClick={() => onPageChange(results.page - 1)}
             >
-              ← Previous
+              Previous
             </Button>
             <Text format={{ fontWeight: 'demibold' }}>
               Page {results.page} of {results.totalPages}
@@ -1373,7 +1125,7 @@ const SearchResultsPanel: React.FC<SearchResultsPanelProps> = ({
               disabled={results.page >= results.totalPages}
               onClick={() => onPageChange(results.page + 1)}
             >
-              Next →
+              Next
             </Button>
           </Flex>
         </Tile>
@@ -1383,7 +1135,7 @@ const SearchResultsPanel: React.FC<SearchResultsPanelProps> = ({
 };
 
 // ----------------------------------------------------------------------------
-// Program Result Card (Enhanced)
+// Program Result Card
 // ----------------------------------------------------------------------------
 
 interface ProgramResultCardProps {
@@ -1408,7 +1160,6 @@ const ProgramResultCard: React.FC<ProgramResultCardProps> = ({
   const programTypeLabel = schema?.programProperties?.recordTypes?.[programType]?.label || programType;
   const companyName = company?.properties.name ? String(company.properties.name) : 'Unknown Partner';
 
-  // Program details
   const programRegion = program.properties.region ? String(program.properties.region) : '';
   const primaryCampType = program.properties.primary_camp_type ? String(program.properties.primary_camp_type) : '';
   const genderStructure = program.properties.gender_structure
@@ -1416,13 +1167,11 @@ const ProgramResultCard: React.FC<ProgramResultCardProps> = ({
     : '';
   const isBrotherSister = program.properties.is_brother_sister === true;
 
-  // Company location
   const companyState = company?.properties.us_state ? String(company.properties.us_state) : '';
   const companyCountry = company?.properties.country_hq ? String(company.properties.country_hq) : '';
   const companyLocation = [companyState, companyCountry].filter(Boolean).join(', ');
   const partnerStatus = company?.properties.lifecyclestage ? String(company.properties.lifecyclestage) : '';
 
-  // Session summary
   const firstSession = sessions[0];
   const sessionAgeRange = firstSession
     ? `${firstSession.properties.age__min_ || '?'}-${firstSession.properties.age__max_ || '?'} years`
@@ -1437,7 +1186,6 @@ const ProgramResultCard: React.FC<ProgramResultCardProps> = ({
         {/* Header Row */}
         <Flex direction="row" justify="between" align="start">
           <Flex direction="column" gap="xs">
-            {/* Program Name & Type */}
             <Flex direction="row" gap="sm" align="center">
               <Link href={buildLink('program', program.id)}>
                 <Text format={{ fontWeight: 'bold' }}>{programName}</Text>
@@ -1447,23 +1195,21 @@ const ProgramResultCard: React.FC<ProgramResultCardProps> = ({
               )}
             </Flex>
 
-            {/* Partner Info */}
             <Flex direction="row" gap="sm" align="center">
               {company && (
                 <>
                   <Link href={buildLink('company', company.id)}>
                     <Text format={{ fontWeight: 'demibold' }}>{companyName}</Text>
                   </Link>
-                  {companyLocation && <Text>• {companyLocation}</Text>}
+                  {companyLocation && <Text>| {companyLocation}</Text>}
                   {partnerStatus === 'customer' && (
-                    <StatusTag variant="success">Active Partner</StatusTag>
+                    <Tag variant="success">Active Partner</Tag>
                   )}
                 </>
               )}
             </Flex>
           </Flex>
 
-          {/* Session Count & Expand Button */}
           <Flex direction="column" align="end" gap="xs">
             <Tag variant="default">
               {matchingSessionCount} of {totalSessionCount} sessions
@@ -1474,7 +1220,7 @@ const ProgramResultCard: React.FC<ProgramResultCardProps> = ({
           </Flex>
         </Flex>
 
-        {/* Program Attributes (Tags) */}
+        {/* Program Attributes */}
         <Flex direction="row" gap="xs" wrap="wrap">
           {programRegion && <Tag>{formatMultiValue(programRegion)}</Tag>}
           {primaryCampType && <Tag>{formatMultiValue(primaryCampType)}</Tag>}
@@ -1489,7 +1235,6 @@ const ProgramResultCard: React.FC<ProgramResultCardProps> = ({
           <>
             <Divider />
 
-            {/* Program Details using DescriptionList */}
             <DescriptionList direction="row">
               {programRegion && (
                 <DescriptionListItem label="Region">
@@ -1513,7 +1258,6 @@ const ProgramResultCard: React.FC<ProgramResultCardProps> = ({
               )}
             </DescriptionList>
 
-            {/* Sessions Table */}
             {sessions.length > 0 && (
               <Box>
                 <Text format={{ fontWeight: 'demibold' }}>Matching Sessions:</Text>
@@ -1540,7 +1284,7 @@ const ProgramResultCard: React.FC<ProgramResultCardProps> = ({
                 {sessions.length > 10 && (
                   <Text format={{ italic: true }}>
                     Showing 10 of {sessions.length} sessions.{' '}
-                    <Link href={buildLink('program', program.id)}>View all in HubSpot →</Link>
+                    <Link href={buildLink('program', program.id)}>View all in HubSpot</Link>
                   </Text>
                 )}
               </Box>
