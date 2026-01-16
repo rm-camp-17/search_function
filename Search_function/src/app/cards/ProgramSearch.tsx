@@ -175,10 +175,12 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
   const [selectedProgramType, setSelectedProgramType] = useState<string>('');
   const [activeFilters, setActiveFilters] = useState<Filter[]>([]);
   const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [companyOptions, setCompanyOptions] = useState<PropertyOption[]>([]);
 
   // UI state
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
@@ -229,6 +231,11 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       if (data.success) {
         setSchema(data.data);
         setError(null);
+
+        // Trigger initial search to get company facets
+        if (!programType) {
+          loadCompanyOptions();
+        }
       } else {
         setError(data.error?.message || 'Failed to load schema');
       }
@@ -240,6 +247,48 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     }
   };
 
+  // Load company options and initial facets from search
+  const loadCompanyOptions = async () => {
+    try {
+      const response = await hubspot.fetch(`${API_BASE_URL}/api/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          page: 1,
+          pageSize: 20,
+          includeEmptyResults: true,
+        }),
+      });
+
+      const data = await response.json();
+      console.log('Initial search response:', data.success ? 'success' : 'failed');
+
+      if (data.success) {
+        // Set search results to make facets available to filter controls
+        setSearchResults(data.data);
+
+        if (data.data.facets) {
+          // Find company name facet
+          const companyFacet = data.data.facets.find(
+            (f: FacetResult) => f.field === 'name' && f.objectType === 'company'
+          );
+          if (companyFacet) {
+            const options = companyFacet.values.map((v: FacetValue) => ({
+              value: v.value,
+              label: v.label,
+            }));
+            // Sort alphabetically
+            options.sort((a: PropertyOption, b: PropertyOption) => a.label.localeCompare(b.label));
+            setCompanyOptions(options);
+            console.log('Loaded', options.length, 'company options');
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load company options:', err);
+    }
+  };
+
   const executeSearch = useCallback(async (page = 1) => {
     if (!schema) return;
 
@@ -247,19 +296,34 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     setCurrentPage(page);
 
     try {
+      // Build filters including company selection
+      const allFilters: Filter[] = [...activeFilters];
+
+      // Add company filter if companies are selected
+      if (selectedCompanies.length > 0) {
+        allFilters.push({
+          field: 'name',
+          operator: 'in',
+          value: selectedCompanies,
+          objectType: 'company',
+        });
+      }
+
       const filterGroup: FilterGroup = {
         operator: 'AND',
-        filters: activeFilters,
+        filters: allFilters,
       };
 
       const requestBody = {
         query: searchQuery || undefined,
-        filters: activeFilters.length > 0 ? filterGroup : undefined,
+        filters: allFilters.length > 0 ? filterGroup : undefined,
         programType: selectedProgramType || undefined,
         page,
         pageSize: 20,
         includeEmptyResults: false,
       };
+
+      console.log('Search request:', JSON.stringify(requestBody, null, 2));
 
       const response = await hubspot.fetch(`${API_BASE_URL}/api/search`, {
         method: 'POST',
@@ -268,6 +332,8 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       });
 
       const data = await response.json();
+      console.log('Search response:', data.success ? 'success' : 'failed', data.data?.totalCount || 0, 'results');
+
       if (data.success) {
         setSearchResults(data.data);
         setError(null);
@@ -280,14 +346,14 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     } finally {
       setSearching(false);
     }
-  }, [schema, searchQuery, selectedProgramType, activeFilters]);
+  }, [schema, searchQuery, selectedProgramType, activeFilters, selectedCompanies]);
 
   // Auto-search when filters change
   useEffect(() => {
-    if (schema && (selectedProgramType || activeFilters.length > 0)) {
+    if (schema && (selectedCompanies.length > 0 || selectedProgramType || activeFilters.length > 0)) {
       executeSearch(1);
     }
-  }, [selectedProgramType, activeFilters, schema]);
+  }, [selectedCompanies, selectedProgramType, activeFilters, schema]);
 
   const handleSearch = () => {
     executeSearch(1);
@@ -318,6 +384,7 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
 
   const clearAllFilters = () => {
     setActiveFilters([]);
+    setSelectedCompanies([]);
     setSelectedProgramType('');
     setSearchQuery('');
     setSearchResults(null);
@@ -377,9 +444,30 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
         </Button>
       </Flex>
 
-      {/* Program Type Selection - Primary Filter */}
+      {/* Step 1: Company Selection - Primary Filter */}
       <Box>
-        <Text format={{ fontWeight: 'medium' }}>Program Type</Text>
+        <Text format={{ fontWeight: 'medium' }}>Step 1: Select Companies (Partners)</Text>
+        <MultiSelect
+          name="companySelect"
+          label="Companies"
+          placeholder="Select one or more companies..."
+          value={selectedCompanies}
+          options={companyOptions.map(c => ({ value: c.value, label: c.label }))}
+          onChange={(values) => setSelectedCompanies(values)}
+        />
+        {selectedCompanies.length > 0 && (
+          <Flex direction="row" gap="xs" wrap="wrap">
+            <Text>Selected: </Text>
+            {selectedCompanies.map(companyName => (
+              <Tag key={companyName}>{companyName}</Tag>
+            ))}
+          </Flex>
+        )}
+      </Box>
+
+      {/* Step 2: Program Type Selection */}
+      <Box>
+        <Text format={{ fontWeight: 'medium' }}>Step 2: Select Program Type</Text>
         <ToggleGroup
           name="programType"
           value={selectedProgramType}
@@ -422,12 +510,15 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       )}
 
       {/* Applied Filters Tags */}
-      {activeFilters.length > 0 && (
+      {(selectedCompanies.length > 0 || activeFilters.length > 0) && (
         <Flex direction="row" gap="xs" wrap="wrap">
           <Text format={{ fontWeight: 'medium' }}>Active Filters:</Text>
+          {selectedCompanies.length > 0 && (
+            <Tag>Companies: {selectedCompanies.length} selected</Tag>
+          )}
           {activeFilters.map((filter, idx) => (
             <Tag key={`${filter.field}-${idx}`}>
-              {getFilterLabel(schema, filter)} ×
+              {getFilterLabel(schema, filter)}
             </Tag>
           ))}
           <Button variant="secondary" size="xs" onClick={clearAllFilters}>
@@ -519,14 +610,15 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
     return true;
   });
 
-  // Group by object type
-  const companyFilters = filterableFields.filter(f => f.objectType === 'company');
+  // Note: Company filters are now handled via the company multi-select at the top
+  // We don't show company filters in the filter panel anymore
   const programFilters = filterableFields.filter(f => f.objectType === 'program');
   const sessionFilters = filterableFields.filter(f => f.objectType === 'session');
 
   // Organize into logical filter categories for progressive refinement workflows
-  // Category 1: Location/Geography (supports multiple workflow entry points)
-  const locationFields = ['region', 'us_state', 'country_hq', 'locations'];
+  // Category 1: Location/Geography - only program and session location fields
+  // (company location filters removed - company selection is handled separately)
+  const locationFields = ['region', 'locations'];
   const locationFilters = filterableFields.filter(f => locationFields.includes(f.field));
 
   // Category 2: Program Characteristics (type-specific attributes)
@@ -545,36 +637,13 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
   const priceFields = ['tuition__current_', 'tuition_currency'];
   const priceFilters = filterableFields.filter(f => priceFields.includes(f.field));
 
-  // Category 6: Status & Availability (using partner lifecycle stage)
-  const statusFields = ['lifecyclestage'];
-  const statusFilters = filterableFields.filter(f => statusFields.includes(f.field));
-
-  // Category 7: Activities & Options
+  // Category 6: Activities & Options
   const featureFields = ['sport_options', 'arts_options', 'education_options'];
   const featureFilters = filterableFields.filter(f => featureFields.includes(f.field));
 
   return (
-    <Accordion title="Filters" defaultOpen={true}>
+    <Accordion title="Step 3: Additional Filters" defaultOpen={true}>
       <Flex direction="column" gap="md">
-        {/* Partner (Company) Filters */}
-        {companyFilters.length > 0 && (
-          <Box>
-            <Text format={{ fontWeight: 'medium' }}>Partner Filters</Text>
-            <Flex direction="row" gap="sm" wrap="wrap">
-              {companyFilters.map(field => (
-                <FilterControl
-                  key={field.field}
-                  field={field}
-                  activeFilters={activeFilters}
-                  facets={facets}
-                  onAddFilter={onAddFilter}
-                  onRemoveFilter={onRemoveFilter}
-                />
-              ))}
-            </Flex>
-          </Box>
-        )}
-
         {/* Location & Geography */}
         {locationFilters.length > 0 && (
           <Box>
@@ -670,25 +739,6 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
           </Box>
         )}
 
-        {/* Status & Availability */}
-        {statusFilters.length > 0 && (
-          <Box>
-            <Text format={{ fontWeight: 'medium' }}>Status & Availability</Text>
-            <Flex direction="row" gap="sm" wrap="wrap">
-              {statusFilters.map(field => (
-                <FilterControl
-                  key={field.field}
-                  field={field}
-                  activeFilters={activeFilters}
-                  facets={facets}
-                  onAddFilter={onAddFilter}
-                  onRemoveFilter={onRemoveFilter}
-                />
-              ))}
-            </Flex>
-          </Box>
-        )}
-
         {/* Activities & Options */}
         {featureFilters.length > 0 && (
           <Box>
@@ -742,6 +792,33 @@ const FilterControl: React.FC<FilterControlProps> = ({
 
   switch (field.type) {
     case 'enumeration':
+      // Use MultiSelect for multi-select fields
+      if (field.multiSelect) {
+        const currentValues = Array.isArray(currentFilter?.value)
+          ? currentFilter.value as string[]
+          : currentFilter?.value ? [String(currentFilter.value)] : [];
+
+        return (
+          <Box>
+            <MultiSelect
+              name={field.field}
+              label={field.label}
+              placeholder={`Select ${field.label}...`}
+              value={currentValues}
+              options={options.map(o => ({ value: o.value, label: o.label }))}
+              onChange={(values) => {
+                if (values && values.length > 0) {
+                  onAddFilter(field.field, values, 'in', field.objectType);
+                } else {
+                  onRemoveFilter(field.field);
+                }
+              }}
+            />
+          </Box>
+        );
+      }
+
+      // Regular single-select dropdown
       return (
         <Box>
           <Select

@@ -10,8 +10,8 @@
       "fieldType": "text",
       "description": "Name of the partner organization",
       "searchable": true,
-      "filterable": false,
-      "facetable": false,
+      "filterable": true,
+      "facetable": true,
       "displayInResults": true,
       "displayOrder": 1,
       "required": true
@@ -83,8 +83,8 @@
       "fieldType": "select",
       "description": "Country where partner is headquartered",
       "searchable": false,
-      "filterable": true,
-      "facetable": true,
+      "filterable": false,
+      "facetable": false,
       "displayInResults": true,
       "displayOrder": 7,
       "options": []
@@ -96,8 +96,8 @@
       "fieldType": "select",
       "description": "US State where partner is located",
       "searchable": false,
-      "filterable": true,
-      "facetable": true,
+      "filterable": false,
+      "facetable": false,
       "displayInResults": true,
       "displayOrder": 8,
       "options": [
@@ -232,7 +232,7 @@
       "fieldType": "number",
       "description": "Commission rate percentage",
       "searchable": false,
-      "filterable": true,
+      "filterable": false,
       "facetable": false,
       "displayInResults": false,
       "displayOrder": 15
@@ -341,8 +341,8 @@
       "fieldType": "select",
       "description": "Status of the partner relationship",
       "searchable": false,
-      "filterable": true,
-      "facetable": true,
+      "filterable": false,
+      "facetable": false,
       "displayInResults": true,
       "displayOrder": 24,
       "options": [
