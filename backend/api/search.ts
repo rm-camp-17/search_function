@@ -65,13 +65,22 @@ export default async function handler(
 
   try {
     // Initialize cache if needed (uses HUBSPOT_ACCESS_TOKEN env var)
+    console.log(`[${requestId}] Starting search request`);
     await ensureInitialized();
 
     // Parse and validate request body
     const searchRequest = req.body as SearchRequest;
+    console.log(`[${requestId}] Search request:`, JSON.stringify({
+      query: searchRequest.query,
+      programType: searchRequest.programType,
+      filterCount: searchRequest.filters?.filters?.length || 0,
+      page: searchRequest.page,
+      pageSize: searchRequest.pageSize,
+    }));
 
     // Execute search
     const searchResponse = executeSearch(searchRequest);
+    console.log(`[${requestId}] Search completed: ${searchResponse.totalCount} results, ${searchResponse.facets?.length || 0} facets`);
 
     const response: ApiResponse<SearchResponse> = {
       success: true,
@@ -85,7 +94,7 @@ export default async function handler(
 
     res.status(200).json(response);
   } catch (error) {
-    console.error('Search error:', error);
+    console.error(`[${requestId}] Search error:`, error);
 
     const response: ApiResponse<null> = {
       success: false,
