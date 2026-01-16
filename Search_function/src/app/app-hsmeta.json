@@ -2,15 +2,15 @@
   "uid": "Search_function_app",
   "type": "app",
   "config": {
-    "description": "An example to demonstrate how to build a static private app with developer projects.",
-    "name": "Search_function-Application",
+    "description": "Camp Experts Program & Session Search - Internal read-only search experience for finding programs and sessions.",
+    "name": "Camp Experts Search",
     "distribution": "private",
     "auth": {
       "type": "static",
       "requiredScopes": [
         "crm.objects.contacts.read",
-        "crm.objects.contacts.write",
         "crm.objects.companies.read",
+        "crm.objects.deals.read",
         "crm.objects.custom.read",
         "crm.schemas.custom.read"
       ],
@@ -19,15 +19,16 @@
     },
     "permittedUrls": {
       "fetch": [
-        "https://api.hubapi.com"
+        "https://api.hubapi.com",
+        "https://camp-experts-search.vercel.app"
       ],
       "iframe": [],
       "img": []
     },
     "support": {
-      "supportEmail": "support@example.com",
-      "documentationUrl": "https://example.com/docs",
-      "supportUrl": "https://example.com/support",
+      "supportEmail": "support@campexperts.com",
+      "documentationUrl": "https://campexperts.com/docs",
+      "supportUrl": "https://campexperts.com/support",
       "supportPhone": "+18005555555"
     }
   }
