@@ -251,11 +251,11 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       const response = await hubspot.fetch(`${API_BASE_URL}/api/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           page: 1,
           pageSize: 20,
           includeEmptyResults: true,
-        }) as unknown as Record<string, unknown>,
+        },
       });
 
       const data = await response.json();
@@ -326,7 +326,7 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       const response = await hubspot.fetch(`${API_BASE_URL}/api/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody) as unknown as Record<string, unknown>,
+        body: requestBody,
       });
 
       const data = await response.json();
