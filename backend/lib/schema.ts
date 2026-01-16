@@ -149,6 +149,7 @@ export function getFilterableFieldsForType(
       operators: getOperatorsForField(p),
       options: p.options,
       buckets: p.buckets,
+      multiSelect: p.multiSelect,
       applicableRecordTypes: p.applicableRecordTypes,
       applicableParentProgramTypes: p.applicableParentProgramTypes,
     }));

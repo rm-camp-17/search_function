@@ -51,6 +51,7 @@ interface FilterableField {
   buckets?: Array<{ value: string; label: string; min: number | null; max: number | null }>;
   applicableRecordTypes?: string[];
   applicableParentProgramTypes?: string[];
+  multiSelect?: boolean;
 }
 
 interface FacetableField {
@@ -84,7 +85,7 @@ interface FacetValue {
 interface FacetResult {
   field: string;
   label: string;
-  objectType: 'program' | 'session';
+  objectType: 'program' | 'session' | 'company';
   values: FacetValue[];
 }
 
@@ -132,7 +133,7 @@ interface Filter {
   field: string;
   operator: string;
   value: string | number | boolean | string[] | number[];
-  objectType?: 'program' | 'session';
+  objectType?: 'program' | 'session' | 'company';
 }
 
 interface FilterGroup {
@@ -298,7 +299,7 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     }
   };
 
-  const addFilter = (field: string, value: string | string[], operator = 'eq', objectType?: 'program' | 'session') => {
+  const addFilter = (field: string, value: string | string[], operator = 'eq', objectType?: 'program' | 'session' | 'company') => {
     const existingIndex = activeFilters.findIndex(f => f.field === field);
     if (existingIndex >= 0) {
       // Update existing filter
@@ -483,7 +484,7 @@ interface FilterPanelProps {
   schema: SchemaResponse;
   programType: string;
   activeFilters: Filter[];
-  onAddFilter: (field: string, value: string | string[], operator?: string, objectType?: 'program' | 'session') => void;
+  onAddFilter: (field: string, value: string | string[], operator?: string, objectType?: 'program' | 'session' | 'company') => void;
   onRemoveFilter: (field: string) => void;
   onClearAll: () => void;
   facets?: FacetResult[];
@@ -519,18 +520,48 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
   });
 
   // Group by object type
+  const companyFilters = filterableFields.filter(f => f.objectType === 'company');
   const programFilters = filterableFields.filter(f => f.objectType === 'program');
   const sessionFilters = filterableFields.filter(f => f.objectType === 'session');
+
+  // Organize into logical filter categories for progressive refinement workflows
+  // Category 1: Location/Geography (supports multiple workflow entry points)
+  const locationFields = ['program_region', 'program_state', 'program_country', 'state', 'country', 'destinations', 'departure_city'];
+  const locationFilters = filterableFields.filter(f => locationFields.includes(f.field));
+
+  // Category 2: Program Characteristics (type-specific attributes)
+  const programCharFields = ['camp_type', 'trip_type', 'specialty_focus', 'coed_status', 'religious_affiliation', 'accreditation'];
+  const programCharFilters = filterableFields.filter(f => programCharFields.includes(f.field));
+
+  // Category 3: Dates & Duration
+  const dateFields = ['session_start_date', 'session_end_date', 'session_length_days', 'session_length_weeks', 'session_type'];
+  const dateFilters = filterableFields.filter(f => dateFields.includes(f.field));
+
+  // Category 4: Age & Grade (eligibility)
+  const eligibilityFields = ['age_min', 'age_max', 'grade_min', 'grade_max'];
+  const eligibilityFilters = filterableFields.filter(f => eligibilityFields.includes(f.field));
+
+  // Category 5: Price & Financial
+  const priceFields = ['tuition', 'tuition_per_week', 'financial_aid_available'];
+  const priceFilters = filterableFields.filter(f => priceFields.includes(f.field));
+
+  // Category 6: Status & Availability
+  const statusFields = ['program_status', 'session_status', 'spots_available', 'lifecyclestage'];
+  const statusFilters = filterableFields.filter(f => statusFields.includes(f.field));
+
+  // Category 7: Features & Activities
+  const featureFields = ['activities_included', 'special_features', 'kosher_available'];
+  const featureFilters = filterableFields.filter(f => featureFields.includes(f.field));
 
   return (
     <Accordion title="Filters" defaultOpen={true}>
       <Flex direction="column" gap="md">
-        {/* Program Filters */}
-        {programFilters.length > 0 && (
+        {/* Partner (Company) Filters */}
+        {companyFilters.length > 0 && (
           <Box>
-            <Text format={{ fontWeight: 'medium' }}>Program Filters</Text>
+            <Text format={{ fontWeight: 'medium' }}>Partner Filters</Text>
             <Flex direction="row" gap="sm" wrap="wrap">
-              {programFilters.slice(0, 6).map(field => (
+              {companyFilters.map(field => (
                 <FilterControl
                   key={field.field}
                   field={field}
@@ -544,12 +575,126 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
           </Box>
         )}
 
-        {/* Session Filters */}
-        {sessionFilters.length > 0 && (
+        {/* Location & Geography */}
+        {locationFilters.length > 0 && (
           <Box>
-            <Text format={{ fontWeight: 'medium' }}>Session Filters</Text>
+            <Text format={{ fontWeight: 'medium' }}>Location & Destinations</Text>
             <Flex direction="row" gap="sm" wrap="wrap">
-              {sessionFilters.slice(0, 8).map(field => (
+              {locationFilters.map(field => (
+                <FilterControl
+                  key={field.field}
+                  field={field}
+                  activeFilters={activeFilters}
+                  facets={facets}
+                  onAddFilter={onAddFilter}
+                  onRemoveFilter={onRemoveFilter}
+                />
+              ))}
+            </Flex>
+          </Box>
+        )}
+
+        {/* Program Characteristics */}
+        {programCharFilters.length > 0 && (
+          <Box>
+            <Text format={{ fontWeight: 'medium' }}>Program Characteristics</Text>
+            <Flex direction="row" gap="sm" wrap="wrap">
+              {programCharFilters.map(field => (
+                <FilterControl
+                  key={field.field}
+                  field={field}
+                  activeFilters={activeFilters}
+                  facets={facets}
+                  onAddFilter={onAddFilter}
+                  onRemoveFilter={onRemoveFilter}
+                />
+              ))}
+            </Flex>
+          </Box>
+        )}
+
+        {/* Dates & Duration */}
+        {dateFilters.length > 0 && (
+          <Box>
+            <Text format={{ fontWeight: 'medium' }}>Dates & Duration</Text>
+            <Flex direction="row" gap="sm" wrap="wrap">
+              {dateFilters.map(field => (
+                <FilterControl
+                  key={field.field}
+                  field={field}
+                  activeFilters={activeFilters}
+                  facets={facets}
+                  onAddFilter={onAddFilter}
+                  onRemoveFilter={onRemoveFilter}
+                />
+              ))}
+            </Flex>
+          </Box>
+        )}
+
+        {/* Age & Grade Eligibility */}
+        {eligibilityFilters.length > 0 && (
+          <Box>
+            <Text format={{ fontWeight: 'medium' }}>Age & Grade Eligibility</Text>
+            <Flex direction="row" gap="sm" wrap="wrap">
+              {eligibilityFilters.map(field => (
+                <FilterControl
+                  key={field.field}
+                  field={field}
+                  activeFilters={activeFilters}
+                  facets={facets}
+                  onAddFilter={onAddFilter}
+                  onRemoveFilter={onRemoveFilter}
+                />
+              ))}
+            </Flex>
+          </Box>
+        )}
+
+        {/* Price & Financial Aid */}
+        {priceFilters.length > 0 && (
+          <Box>
+            <Text format={{ fontWeight: 'medium' }}>Price & Financial Aid</Text>
+            <Flex direction="row" gap="sm" wrap="wrap">
+              {priceFilters.map(field => (
+                <FilterControl
+                  key={field.field}
+                  field={field}
+                  activeFilters={activeFilters}
+                  facets={facets}
+                  onAddFilter={onAddFilter}
+                  onRemoveFilter={onRemoveFilter}
+                />
+              ))}
+            </Flex>
+          </Box>
+        )}
+
+        {/* Status & Availability */}
+        {statusFilters.length > 0 && (
+          <Box>
+            <Text format={{ fontWeight: 'medium' }}>Status & Availability</Text>
+            <Flex direction="row" gap="sm" wrap="wrap">
+              {statusFilters.map(field => (
+                <FilterControl
+                  key={field.field}
+                  field={field}
+                  activeFilters={activeFilters}
+                  facets={facets}
+                  onAddFilter={onAddFilter}
+                  onRemoveFilter={onRemoveFilter}
+                />
+              ))}
+            </Flex>
+          </Box>
+        )}
+
+        {/* Features & Activities */}
+        {featureFilters.length > 0 && (
+          <Box>
+            <Text format={{ fontWeight: 'medium' }}>Features & Activities</Text>
+            <Flex direction="row" gap="sm" wrap="wrap">
+              {featureFilters.map(field => (
                 <FilterControl
                   key={field.field}
                   field={field}
@@ -575,7 +720,7 @@ interface FilterControlProps {
   field: FilterableField;
   activeFilters: Filter[];
   facets?: FacetResult[];
-  onAddFilter: (field: string, value: string | string[], operator?: string, objectType?: 'program' | 'session') => void;
+  onAddFilter: (field: string, value: string | string[], operator?: string, objectType?: 'program' | 'session' | 'company') => void;
   onRemoveFilter: (field: string) => void;
 }
 
@@ -839,7 +984,31 @@ const ProgramResultTile: React.FC<ProgramResultTileProps> = ({
   const programType = String(program.properties.program_type || '');
   const programTypeLabel = schema?.programProperties?.recordTypes?.[programType]?.label || programType;
   const companyName = company?.properties.name ? String(company.properties.name) : 'Unknown Partner';
-  const region = String(program.properties.program_region || program.properties.program_state || '');
+
+  // Program location (region or state for camps, country for trips)
+  const programRegion = program.properties.program_region ? String(program.properties.program_region) : '';
+  const programState = program.properties.program_state ? String(program.properties.program_state) : '';
+  const programCountry = program.properties.program_country ? String(program.properties.program_country) : '';
+  const programLocation = programState || programRegion || programCountry || '';
+
+  // Company (Partner) location info
+  const companyCity = company?.properties.city ? String(company.properties.city) : '';
+  const companyState = company?.properties.state ? String(company.properties.state) : '';
+  const companyCountry = company?.properties.country ? String(company.properties.country) : '';
+  const companyLocation = [companyCity, companyState, companyCountry].filter(Boolean).join(', ');
+
+  // Partner status
+  const partnerStatus = company?.properties.lifecyclestage ? String(company.properties.lifecyclestage) : '';
+
+  // Program-type specific attributes
+  const campType = program.properties.camp_type ? String(program.properties.camp_type) : '';
+  const tripType = program.properties.trip_type ? String(program.properties.trip_type) : '';
+  const specialtyFocus = program.properties.specialty_focus ? String(program.properties.specialty_focus) : '';
+  const programSubtype = campType || tripType || specialtyFocus || '';
+
+  // Get label for coed status and religious affiliation
+  const coed = program.properties.coed_status ? getOptionDisplayLabel(schema, 'program', 'coed_status', String(program.properties.coed_status)) : '';
+  const religious = program.properties.religious_affiliation ? getOptionDisplayLabel(schema, 'program', 'religious_affiliation', String(program.properties.religious_affiliation)) : '';
 
   return (
     <Tile>
@@ -852,16 +1021,32 @@ const ProgramResultTile: React.FC<ProgramResultTileProps> = ({
                 <Text format={{ fontWeight: 'bold' }}>{programName}</Text>
               </Link>
               {programTypeLabel && <Tag>{programTypeLabel}</Tag>}
+              {program.properties.program_status === 'active' && <Tag variant="success">Active</Tag>}
+              {program.properties.program_status === 'coming_soon' && <Tag variant="warning">Coming Soon</Tag>}
             </Flex>
-            <Flex direction="row" gap="sm">
+
+            {/* Company/Partner Info with deep-link */}
+            <Flex direction="row" gap="sm" align="center">
               {company && (
-                <Link href={buildLink('company', company.id)}>
-                  <Text>{companyName}</Text>
-                </Link>
+                <>
+                  <Text format={{ fontWeight: 'medium' }}>Partner:</Text>
+                  <Link href={buildLink('company', company.id)}>
+                    <Text>{companyName}</Text>
+                  </Link>
+                  {companyLocation && <Text>({companyLocation})</Text>}
+                  {partnerStatus === 'customer' && <Tag variant="success" size="sm">Active Partner</Tag>}
+                </>
               )}
-              {region && <Text>• {region}</Text>}
             </Flex>
+
+            {/* Program Location */}
+            {programLocation && (
+              <Flex direction="row" gap="sm">
+                <Text>Program Location: {programLocation}</Text>
+              </Flex>
+            )}
           </Flex>
+
           <Flex direction="column" align="end">
             <Text>
               {matchingSessionCount} of {totalSessionCount} sessions match
@@ -876,17 +1061,14 @@ const ProgramResultTile: React.FC<ProgramResultTileProps> = ({
           </Flex>
         </Flex>
 
-        {/* Program Details */}
-        <Flex direction="row" gap="md" wrap="wrap">
-          {program.properties.coed_status && (
-            <Text>{String(program.properties.coed_status)}</Text>
-          )}
-          {program.properties.religious_affiliation && (
-            <Text>{String(program.properties.religious_affiliation)}</Text>
-          )}
-          {program.properties.financial_aid_available && (
-            <Tag>Financial Aid Available</Tag>
-          )}
+        {/* Program Attributes */}
+        <Flex direction="row" gap="sm" wrap="wrap">
+          {programSubtype && <Tag>{formatMultiValue(programSubtype)}</Tag>}
+          {coed && coed !== 'none' && <Tag>{coed}</Tag>}
+          {religious && religious !== 'none' && religious !== 'Non-denominational' && <Tag>{religious}</Tag>}
+          {program.properties.kosher_available && <Tag>Kosher Available</Tag>}
+          {program.properties.financial_aid_available && <Tag variant="info">Financial Aid</Tag>}
+          {program.properties.accreditation && <Tag variant="success">{formatMultiValue(String(program.properties.accreditation))}</Tag>}
         </Flex>
 
         {/* Sessions Table (expanded) */}
@@ -984,6 +1166,36 @@ function formatDate(isoDate: string): string {
   } catch {
     return isoDate;
   }
+}
+
+function getOptionDisplayLabel(
+  schema: SchemaResponse | null,
+  objectType: 'program' | 'session' | 'company',
+  fieldName: string,
+  value: string
+): string {
+  if (!schema) return value;
+
+  // Find the field in filterable fields
+  const field = schema.filterableFields.find(
+    f => f.field === fieldName && f.objectType === objectType
+  );
+
+  if (field?.options) {
+    const option = field.options.find(o => o.value === value);
+    return option?.label || value;
+  }
+
+  return value;
+}
+
+function formatMultiValue(value: string): string {
+  // Handle semicolon-separated multi-values
+  if (value.includes(';')) {
+    return value.split(';').map(v => v.trim()).join(', ');
+  }
+  // Convert snake_case to Title Case
+  return value.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 function formatCurrency(amount: number): string {

@@ -199,7 +199,7 @@ export interface SearchResult {
 export interface FacetResult {
   field: string;
   label: string;
-  objectType: 'program' | 'session';
+  objectType: 'program' | 'session' | 'company';
   values: FacetValue[];
 }
 
@@ -238,6 +238,7 @@ export interface FilterableField {
   operators: FilterOperator[];
   options?: PropertyOption[];
   buckets?: Bucket[];
+  multiSelect?: boolean;
   applicableRecordTypes?: string[];
   applicableParentProgramTypes?: string[];
 }
