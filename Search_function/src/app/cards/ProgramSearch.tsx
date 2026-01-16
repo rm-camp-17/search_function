@@ -1,6 +1,7 @@
 // ============================================================================
 // Camp Experts Program + Session Search
-// HubSpot UI Extension - Read-only search experience
+// HubSpot UI Extension - Multi-Tab Search Experience
+// Radically rebuilt with 4 focused search modes and enhanced UI
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -8,7 +9,6 @@ import {
   Flex,
   Box,
   Text,
-  Input,
   Select,
   Button,
   Link,
@@ -31,6 +31,14 @@ import {
   DateInput,
   MultiSelect,
   StatusTag,
+  Statistics,
+  StepIndicator,
+  SearchInput,
+  DescriptionList,
+  DescriptionListItem,
+  Icon,
+  Heading,
+  ProgressBar,
 } from '@hubspot/ui-extensions';
 import { hubspot } from '@hubspot/ui-extensions';
 
@@ -143,15 +151,250 @@ interface FilterGroup {
   filters: Filter[];
 }
 
-type SearchTabId = 'all' | 'overnight' | 'teen';
+// ----------------------------------------------------------------------------
+// Tab Configuration - 4 Focused Search Modes
+// ----------------------------------------------------------------------------
+
+type SearchTabId = 'overnight' | 'specialty' | 'teen' | 'other';
 
 interface SearchTabConfig {
   id: SearchTabId;
   label: string;
+  shortLabel: string;
   description: string;
-  showProgramTypeToggle: boolean;
-  allowedFilterFields?: string[];
+  icon: string;
+  programTypes: string[];  // Which program_type values to filter by
+  filterCategories: FilterCategoryConfig[];
+  colorVariant: 'default' | 'success' | 'warning' | 'danger' | 'info';
 }
+
+interface FilterCategoryConfig {
+  title: string;
+  icon: string;
+  fields: string[];
+  defaultOpen?: boolean;
+}
+
+// Overnight Camps - Traditional residential camp experiences
+const OVERNIGHT_FILTERS: FilterCategoryConfig[] = [
+  {
+    title: 'Location & Region',
+    icon: 'location',
+    fields: ['region'],
+    defaultOpen: true,
+  },
+  {
+    title: 'Camp Type & Structure',
+    icon: 'settings',
+    fields: ['primary_camp_type', 'camp_subtype', 'gender_structure', 'is_brother_sister'],
+    defaultOpen: true,
+  },
+  {
+    title: 'Dates & Duration',
+    icon: 'calendar',
+    fields: ['start_date', 'end_date', 'weeks'],
+    defaultOpen: false,
+  },
+  {
+    title: 'Age & Grade',
+    icon: 'user',
+    fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'],
+    defaultOpen: true,
+  },
+  {
+    title: 'Tuition & Cost',
+    icon: 'currency',
+    fields: ['tuition__current_'],
+    defaultOpen: false,
+  },
+  {
+    title: 'Activities & Features',
+    icon: 'activity',
+    fields: ['sport_options', 'arts_options', 'education_options', 'accommodations'],
+    defaultOpen: false,
+  },
+  {
+    title: 'Philosophy & Culture',
+    icon: 'bookmark',
+    fields: ['programming_philosophy'],
+    defaultOpen: false,
+  },
+];
+
+// Specialty Programs - Arts, sports, academic focused
+const SPECIALTY_FILTERS: FilterCategoryConfig[] = [
+  {
+    title: 'Specialty Focus',
+    icon: 'star',
+    fields: ['specialty_subtype', 'primary_camp_type'],
+    defaultOpen: true,
+  },
+  {
+    title: 'Location & Region',
+    icon: 'location',
+    fields: ['region'],
+    defaultOpen: true,
+  },
+  {
+    title: 'Dates & Duration',
+    icon: 'calendar',
+    fields: ['start_date', 'end_date', 'weeks'],
+    defaultOpen: false,
+  },
+  {
+    title: 'Age & Grade',
+    icon: 'user',
+    fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'],
+    defaultOpen: true,
+  },
+  {
+    title: 'Tuition & Cost',
+    icon: 'currency',
+    fields: ['tuition__current_'],
+    defaultOpen: false,
+  },
+  {
+    title: 'Specific Activities',
+    icon: 'activity',
+    fields: ['sport_options', 'arts_options', 'education_options'],
+    defaultOpen: true,
+  },
+];
+
+// Teen Trips & Gap Year - Travel and adventure experiences
+const TEEN_FILTERS: FilterCategoryConfig[] = [
+  {
+    title: 'Experience Type',
+    icon: 'globe',
+    fields: ['experience_subtype', 'programming_philosophy'],
+    defaultOpen: true,
+  },
+  {
+    title: 'Destinations & Locations',
+    icon: 'location',
+    fields: ['region', 'locations'],
+    defaultOpen: true,
+  },
+  {
+    title: 'Dates & Duration',
+    icon: 'calendar',
+    fields: ['start_date', 'end_date', 'weeks'],
+    defaultOpen: true,
+  },
+  {
+    title: 'Age & Grade',
+    icon: 'user',
+    fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'],
+    defaultOpen: true,
+  },
+  {
+    title: 'Tuition & Cost',
+    icon: 'currency',
+    fields: ['tuition__current_'],
+    defaultOpen: false,
+  },
+  {
+    title: 'Accommodations',
+    icon: 'home',
+    fields: ['accommodations'],
+    defaultOpen: false,
+  },
+];
+
+// Other/Browse All - Family camp and comprehensive search
+const OTHER_FILTERS: FilterCategoryConfig[] = [
+  {
+    title: 'Program Type',
+    icon: 'filter',
+    fields: ['program_type'],
+    defaultOpen: true,
+  },
+  {
+    title: 'Location & Region',
+    icon: 'location',
+    fields: ['region', 'locations'],
+    defaultOpen: true,
+  },
+  {
+    title: 'Program Characteristics',
+    icon: 'settings',
+    fields: ['primary_camp_type', 'camp_subtype', 'experience_subtype', 'specialty_subtype', 'gender_structure'],
+    defaultOpen: false,
+  },
+  {
+    title: 'Dates & Duration',
+    icon: 'calendar',
+    fields: ['start_date', 'end_date', 'weeks'],
+    defaultOpen: false,
+  },
+  {
+    title: 'Age & Grade',
+    icon: 'user',
+    fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'],
+    defaultOpen: false,
+  },
+  {
+    title: 'Tuition & Cost',
+    icon: 'currency',
+    fields: ['tuition__current_'],
+    defaultOpen: false,
+  },
+  {
+    title: 'Activities & Features',
+    icon: 'activity',
+    fields: ['sport_options', 'arts_options', 'education_options', 'accommodations'],
+    defaultOpen: false,
+  },
+  {
+    title: 'Philosophy & Culture',
+    icon: 'bookmark',
+    fields: ['programming_philosophy', 'is_brother_sister'],
+    defaultOpen: false,
+  },
+];
+
+const SEARCH_TABS: SearchTabConfig[] = [
+  {
+    id: 'overnight',
+    label: 'Overnight Camps',
+    shortLabel: 'Overnight',
+    description: 'Traditional sleepaway and day camp experiences with residential options.',
+    icon: 'tent',
+    programTypes: ['overnight_camp', 'day_camp'],
+    filterCategories: OVERNIGHT_FILTERS,
+    colorVariant: 'success',
+  },
+  {
+    id: 'specialty',
+    label: 'Specialty Programs',
+    shortLabel: 'Specialty',
+    description: 'Focused programs for arts, sports, academics, and special interests.',
+    icon: 'star',
+    programTypes: ['specialty_program'],
+    filterCategories: SPECIALTY_FILTERS,
+    colorVariant: 'warning',
+  },
+  {
+    id: 'teen',
+    label: 'Teen Trips & Gap Year',
+    shortLabel: 'Teen/Gap',
+    description: 'Travel adventures, gap year programs, and teen experiences worldwide.',
+    icon: 'globe',
+    programTypes: ['teen_trip', 'gap_year'],
+    filterCategories: TEEN_FILTERS,
+    colorVariant: 'info',
+  },
+  {
+    id: 'other',
+    label: 'Browse All Programs',
+    shortLabel: 'All',
+    description: 'Search across all program types including family camps and specialized offerings.',
+    icon: 'search',
+    programTypes: [], // Empty means all types
+    filterCategories: OTHER_FILTERS,
+    colorVariant: 'default',
+  },
+];
 
 // ----------------------------------------------------------------------------
 // Configuration
@@ -160,66 +403,11 @@ interface SearchTabConfig {
 const API_BASE_URL = 'https://camp-experts-search.vercel.app';
 const PORTAL_ID_PLACEHOLDER = '{portalId}';
 
-const SEARCH_TABS: SearchTabConfig[] = [
-  {
-    id: 'all',
-    label: 'Company + Program + Session',
-    description: 'Search across partners, programs, and sessions with flexible filters.',
-    showProgramTypeToggle: true,
-  },
-  {
-    id: 'overnight',
-    label: 'Overnight Camps',
-    description: 'Focus on overnight-specific filters like location, dates, ages, and camp attributes.',
-    showProgramTypeToggle: false,
-    allowedFilterFields: [
-      'region',
-      'locations',
-      'start_date',
-      'end_date',
-      'weeks',
-      'age__min_',
-      'age__max_',
-      'grade_range_min',
-      'grade_range_max',
-      'tuition__current_',
-      'tuition_currency',
-      'primary_camp_type',
-      'camp_subtype',
-      'gender_structure',
-      'is_brother_sister',
-      'programming_philosophy',
-      'accommodations',
-      'sport_options',
-      'arts_options',
-      'education_options',
-    ],
-  },
-  {
-    id: 'teen',
-    label: 'Teen Trips',
-    description: 'Use teen-trip filters like experience, specialty focus, and session logistics.',
-    showProgramTypeToggle: false,
-    allowedFilterFields: [
-      'region',
-      'locations',
-      'start_date',
-      'end_date',
-      'weeks',
-      'age__min_',
-      'age__max_',
-      'grade_range_min',
-      'grade_range_max',
-      'tuition__current_',
-      'tuition_currency',
-      'experience_subtype',
-      'specialty_subtype',
-      'programming_philosophy',
-      'sport_options',
-      'arts_options',
-      'education_options',
-    ],
-  },
+// Search workflow steps
+const SEARCH_STEPS = [
+  { label: 'Select Partner', stepId: 'partner' },
+  { label: 'Set Filters', stepId: 'filters' },
+  { label: 'View Results', stepId: 'results' },
 ];
 
 // ----------------------------------------------------------------------------
@@ -248,39 +436,54 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
-  const [selectedProgramType, setSelectedProgramType] = useState<string>('');
   const [activeFilters, setActiveFilters] = useState<Filter[]>([]);
   const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [companyOptions, setCompanyOptions] = useState<PropertyOption[]>([]);
-  const [activeTab, setActiveTab] = useState<SearchTabId>('all');
+  const [activeTab, setActiveTab] = useState<SearchTabId>('overnight');
 
   // UI state
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
-  const [showFilters, setShowFilters] = useState(true);
+  const [currentStep, setCurrentStep] = useState(0);
 
   const portalId = context.portal.id;
+  const tabConfig = SEARCH_TABS.find(tab => tab.id === activeTab) || SEARCH_TABS[0];
 
   // Load schema on mount
   useEffect(() => {
     loadSchema();
   }, []);
 
-  // Re-fetch schema when program type changes (for applicable filters)
+  // Re-fetch schema when tab changes (for applicable filters)
   useEffect(() => {
-    if (selectedProgramType) {
-      loadSchema(selectedProgramType);
+    if (tabConfig.programTypes.length > 0) {
+      loadSchema(tabConfig.programTypes[0]);
+    } else {
+      loadSchema();
     }
-  }, [selectedProgramType]);
+  }, [activeTab]);
 
+  // Reset state when tab changes
   useEffect(() => {
     setActiveFilters([]);
     setSelectedCompanies([]);
-    setSelectedProgramType('');
     setSearchQuery('');
     setSearchResults(null);
     setError(null);
+    setCurrentStep(0);
+    setExpandedPrograms(new Set());
   }, [activeTab]);
+
+  // Update current step based on state
+  useEffect(() => {
+    if (searchResults && searchResults.totalCount > 0) {
+      setCurrentStep(2);
+    } else if (activeFilters.length > 0 || selectedCompanies.length > 0) {
+      setCurrentStep(1);
+    } else {
+      setCurrentStep(0);
+    }
+  }, [searchResults, activeFilters, selectedCompanies]);
 
   const loadSchema = async (programType?: string) => {
     try {
@@ -289,18 +492,11 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
         ? `${API_BASE_URL}/api/schema?programType=${programType}`
         : `${API_BASE_URL}/api/schema`;
 
-      console.log('Fetching schema from:', url);
-
       const response = await hubspot.fetch(url, {
         method: 'GET',
       });
 
-      console.log('Schema response status:', response.status);
-
-      // Get raw text first to debug
       const rawText = await response.text();
-      console.log('Schema raw response length:', rawText.length);
-      console.log('Schema raw response preview:', rawText.substring(0, 200));
 
       if (!rawText || rawText.length === 0) {
         setError('Empty response from search service');
@@ -308,7 +504,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       }
 
       const data = JSON.parse(rawText);
-      console.log('Schema parsed successfully:', data.success);
 
       if (data.success) {
         setSchema(data.data);
@@ -329,7 +524,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     }
   };
 
-  // Load company options and initial facets from search
   const loadCompanyOptions = async () => {
     try {
       const response = await hubspot.fetch(`${API_BASE_URL}/api/search`, {
@@ -343,14 +537,11 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       });
 
       const data = await response.json();
-      console.log('Initial search response:', data.success ? 'success' : 'failed');
 
       if (data.success) {
-        // Set search results to make facets available to filter controls
         setSearchResults(data.data);
 
         if (data.data.facets) {
-          // Find company name facet
           const companyFacet = data.data.facets.find(
             (f: FacetResult) => f.field === 'name' && f.objectType === 'company'
           );
@@ -359,10 +550,8 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
               value: v.value,
               label: v.label,
             }));
-            // Sort alphabetically
             options.sort((a: PropertyOption, b: PropertyOption) => a.label.localeCompare(b.label));
             setCompanyOptions(options);
-            console.log('Loaded', options.length, 'company options');
           }
         }
       }
@@ -378,7 +567,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     setCurrentPage(page);
 
     try {
-      // Build filters including company selection
       const allFilters: Filter[] = [...activeFilters];
 
       // Add company filter if companies are selected
@@ -396,16 +584,28 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
         filters: allFilters,
       };
 
+      // Determine program type filter based on tab
+      let programTypeFilter: string | undefined = undefined;
+      if (tabConfig.programTypes.length === 1) {
+        programTypeFilter = tabConfig.programTypes[0];
+      } else if (tabConfig.programTypes.length > 1) {
+        // For multiple program types, add them as an 'in' filter
+        allFilters.push({
+          field: 'program_type',
+          operator: 'in',
+          value: tabConfig.programTypes,
+          objectType: 'program',
+        });
+      }
+
       const requestBody = {
         query: searchQuery || undefined,
         filters: allFilters.length > 0 ? filterGroup : undefined,
-        programType: selectedProgramType || undefined,
+        programType: programTypeFilter,
         page,
         pageSize: 20,
         includeEmptyResults: false,
       };
-
-      console.log('Search request:', JSON.stringify(requestBody, null, 2));
 
       const response = await hubspot.fetch(`${API_BASE_URL}/api/search`, {
         method: 'POST',
@@ -414,7 +614,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       });
 
       const data = await response.json();
-      console.log('Search response:', data.success ? 'success' : 'failed', data.data?.totalCount || 0, 'results');
 
       if (data.success) {
         setSearchResults(data.data);
@@ -428,28 +627,34 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     } finally {
       setSearching(false);
     }
-  }, [schema, searchQuery, selectedProgramType, activeFilters, selectedCompanies]);
+  }, [schema, searchQuery, activeFilters, selectedCompanies, tabConfig]);
 
   // Auto-search when filters change
   useEffect(() => {
-    if (schema && (selectedCompanies.length > 0 || selectedProgramType || activeFilters.length > 0)) {
+    if (schema && (selectedCompanies.length > 0 || activeFilters.length > 0)) {
       executeSearch(1);
     }
-  }, [selectedCompanies, selectedProgramType, activeFilters, schema]);
+  }, [selectedCompanies, activeFilters, schema]);
 
   const handleSearch = () => {
+    executeSearch(1);
+  };
+
+  const handleSearchQueryChange = (value: string) => {
+    setSearchQuery(value);
+  };
+
+  const handleSearchSubmit = () => {
     executeSearch(1);
   };
 
   const addFilter = (field: string, value: string | number | boolean | string[] | number[], operator = 'eq', objectType?: 'program' | 'session' | 'company') => {
     const existingIndex = activeFilters.findIndex(f => f.field === field);
     if (existingIndex >= 0) {
-      // Update existing filter
       const newFilters = [...activeFilters];
       newFilters[existingIndex] = { field, operator, value, objectType };
       setActiveFilters(newFilters);
     } else {
-      // Add new filter
       setActiveFilters([...activeFilters, { field, operator, value, objectType }]);
     }
   };
@@ -461,9 +666,9 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
   const clearAllFilters = () => {
     setActiveFilters([]);
     setSelectedCompanies([]);
-    setSelectedProgramType('');
     setSearchQuery('');
     setSearchResults(null);
+    setCurrentStep(0);
   };
 
   const toggleProgramExpanded = (programId: string) => {
@@ -484,11 +689,21 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       .replace('{objectId}', objectId);
   };
 
+  // Get all allowed fields for current tab
+  const getAllowedFields = (): string[] => {
+    const allFields: string[] = [];
+    tabConfig.filterCategories.forEach(category => {
+      allFields.push(...category.fields);
+    });
+    return allFields;
+  };
+
   // Loading state
   if (loading) {
     return (
-      <Flex direction="column" align="center" justify="center" gap="md">
-        <LoadingSpinner label="Loading search..." />
+      <Flex direction="column" align="center" justify="center" gap="lg">
+        <LoadingSpinner label="Loading Camp Search..." size="md" />
+        <Text>Preparing your search experience...</Text>
       </Flex>
     );
   }
@@ -496,32 +711,55 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
   // Error state
   if (error && !schema) {
     return (
-      <Alert title="Error" variant="error">
-        {error}
-      </Alert>
+      <Flex direction="column" gap="md">
+        <Alert title="Connection Error" variant="error">
+          {error}
+        </Alert>
+        <Button onClick={() => loadSchema()}>Retry Connection</Button>
+      </Flex>
     );
   }
 
-  const programTypes: Array<{ value: string; label: string }> = schema?.programProperties?.recordTypes
-    ? Object.values(schema.programProperties.recordTypes)
-    : [];
-
-  const tabConfig = SEARCH_TABS.find(tab => tab.id === activeTab) || SEARCH_TABS[0];
+  // Calculate statistics for display
+  const totalPrograms = searchResults?.totalCount || 0;
+  const totalSessions = searchResults?.results?.reduce((acc, r) => acc + r.matchingSessionCount, 0) || 0;
+  const activeFilterCount = activeFilters.length + (selectedCompanies.length > 0 ? 1 : 0);
 
   return (
     <Flex direction="column" gap="md">
-      {/* Header */}
+      {/* Header with Title and Stats */}
       <Flex direction="row" justify="between" align="center">
-        <Text format={{ fontWeight: 'bold' }}>Program & Session Search</Text>
-        <Button
-          variant="secondary"
-          size="xs"
-          onClick={() => setShowFilters(!showFilters)}
-        >
-          {showFilters ? 'Hide Filters' : 'Show Filters'}
-        </Button>
+        <Heading>Camp & Program Search</Heading>
+        {searchResults && (
+          <Statistics
+            items={[
+              {
+                label: 'Programs',
+                number: totalPrograms.toString(),
+              },
+              {
+                label: 'Sessions',
+                number: totalSessions.toString(),
+              },
+              {
+                label: 'Filters',
+                number: activeFilterCount.toString(),
+              },
+            ]}
+          />
+        )}
       </Flex>
 
+      {/* Search Progress Indicator */}
+      <StepIndicator
+        currentStep={currentStep}
+        stepNames={SEARCH_STEPS.map(s => s.label)}
+        variant="default"
+      />
+
+      <Divider />
+
+      {/* Tab Navigation */}
       <Tabs
         value={activeTab}
         onChange={(value: string) => setActiveTab(value as SearchTabId)}
@@ -529,118 +767,83 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
           value: tab.id,
           label: tab.label,
           content: (
-            <Flex direction="column" gap="md">
-              <Flex direction="row" align="center" gap="sm">
-                <Text>{tab.description}</Text>
-                {!tab.showProgramTypeToggle && <StatusTag variant="info">Focused filters</StatusTag>}
-              </Flex>
-
-              {/* Step 1: Company Selection - Primary Filter */}
-              <Box>
-                <Text format={{ fontWeight: 'demibold' }}>Step 1: Select Companies (Partners)</Text>
-                <MultiSelect
-                  name="companySelect"
-                  label="Companies"
-                  placeholder="Select one or more companies..."
-                  value={selectedCompanies}
-                  options={companyOptions.map(c => ({ value: c.value, label: c.label }))}
-                  onChange={(values) => setSelectedCompanies(values as string[])}
-                />
-                {selectedCompanies.length > 0 && (
-                  <Flex direction="row" gap="xs" wrap="wrap">
-                    <Text>Selected: </Text>
-                    {selectedCompanies.map(companyName => (
-                      <Tag key={companyName}>{companyName}</Tag>
-                    ))}
-                  </Flex>
-                )}
-              </Box>
-
-              {/* Step 2: Program Type Selection */}
-              {tab.showProgramTypeToggle && (
-                <Box>
-                  <ToggleGroup
-                    toggleType="radioButtonList"
-                    name="programType"
-                    label="Step 2: Select Program Type"
-                    value={selectedProgramType}
-                    options={[
-                      { label: 'All Types', value: '' },
-                      ...programTypes.map(pt => ({ label: pt.label, value: pt.value }))
-                    ]}
-                    onChange={(value: string) => setSelectedProgramType(value)}
-                  />
-                </Box>
-              )}
-
-              {/* Search Input */}
-              <Flex direction="row" gap="sm" align="end">
-                <Box>
-                  <Input
-                    name="searchQuery"
-                    label="Search"
-                    placeholder="Search programs, sessions, partners..."
-                    value={searchQuery}
-                    onChange={(value) => setSearchQuery(value)}
-                  />
-                </Box>
-                <Button onClick={handleSearch} disabled={searching}>
-                  {searching ? 'Searching...' : 'Search'}
-                </Button>
-              </Flex>
-
-              {/* Filters Panel */}
-              {showFilters && schema && (
-                <FilterPanel
-                  schema={schema}
-                  programType={selectedProgramType}
-                  activeFilters={activeFilters}
-                  onAddFilter={addFilter}
-                  onRemoveFilter={removeFilter}
-                  onClearAll={clearAllFilters}
-                  facets={searchResults?.facets}
-                  allowedFields={tab.allowedFilterFields}
-                />
-              )}
-            </Flex>
+            <TabContent
+              tabConfig={tab}
+              schema={schema}
+              searchQuery={searchQuery}
+              selectedCompanies={selectedCompanies}
+              companyOptions={companyOptions}
+              activeFilters={activeFilters}
+              searchResults={searchResults}
+              searching={searching}
+              expandedPrograms={expandedPrograms}
+              onSearchQueryChange={handleSearchQueryChange}
+              onSearchSubmit={handleSearchSubmit}
+              onCompaniesChange={setSelectedCompanies}
+              onAddFilter={addFilter}
+              onRemoveFilter={removeFilter}
+              onClearAll={clearAllFilters}
+              onToggleExpand={toggleProgramExpanded}
+              onPageChange={(page) => executeSearch(page)}
+              buildLink={buildHubSpotLink}
+            />
           ),
         }))}
       />
 
-      {/* Applied Filters Tags */}
+      {/* Applied Filters Summary */}
       {(selectedCompanies.length > 0 || activeFilters.length > 0) && (
-        <Flex direction="row" gap="xs" wrap="wrap">
-          <Text format={{ fontWeight: 'demibold' }}>Active Filters:</Text>
-          {selectedCompanies.length > 0 && (
-            <Tag>Companies: {selectedCompanies.length} selected</Tag>
-          )}
-          {activeFilters.map((filter, idx) => (
-            <Tag key={`${filter.field}-${idx}`}>
-              {getFilterLabel(schema, filter)}
-            </Tag>
-          ))}
-          <Button variant="secondary" size="xs" onClick={clearAllFilters}>
-            Clear All
-          </Button>
-        </Flex>
+        <Tile>
+          <Flex direction="column" gap="sm">
+            <Flex direction="row" justify="between" align="center">
+              <Text format={{ fontWeight: 'bold' }}>Active Filters</Text>
+              <Button variant="secondary" size="xs" onClick={clearAllFilters}>
+                Clear All
+              </Button>
+            </Flex>
+            <Flex direction="row" gap="xs" wrap="wrap">
+              {selectedCompanies.length > 0 && (
+                <Tag variant="default" onClick={() => setSelectedCompanies([])}>
+                  Partners: {selectedCompanies.length} selected ✕
+                </Tag>
+              )}
+              {activeFilters.map((filter, idx) => (
+                <Tag
+                  key={`${filter.field}-${idx}`}
+                  variant="default"
+                  onClick={() => removeFilter(filter.field)}
+                >
+                  {getFilterLabel(schema, filter)} ✕
+                </Tag>
+              ))}
+            </Flex>
+          </Flex>
+        </Tile>
       )}
 
-      <Divider />
-
-      {/* Results */}
+      {/* Error Display */}
       {error && (
         <Alert title="Search Error" variant="warning">
           {error}
         </Alert>
       )}
 
+      {/* Loading State */}
       {searching && (
         <Flex direction="column" align="center" justify="center" gap="md">
           <LoadingSpinner label="Searching..." />
+          <ProgressBar
+            title="Searching programs..."
+            variant="info"
+            maxValue={100}
+            value={50}
+            showPercentage={false}
+          />
         </Flex>
       )}
 
-      {!searching && searchResults && (
+      {/* Results Section */}
+      {!searching && searchResults && searchResults.totalCount > 0 && (
         <SearchResultsPanel
           results={searchResults}
           expandedPrograms={expandedPrograms}
@@ -648,16 +851,38 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
           onPageChange={(page) => executeSearch(page)}
           buildLink={buildHubSpotLink}
           schema={schema}
+          tabConfig={tabConfig}
         />
       )}
 
-      {!searching && !searchResults && !error && (
+      {/* Empty State */}
+      {!searching && searchResults && searchResults.totalCount === 0 && (
         <EmptyState
-          title="Start Searching"
+          title="No Programs Found"
           layout="vertical"
+          reverseOrder={false}
         >
           <Text>
-            Select a program type or enter search terms to find programs and sessions.
+            No programs match your current filters. Try adjusting your search criteria or clearing some filters.
+          </Text>
+          <Button variant="secondary" onClick={clearAllFilters}>
+            Clear All Filters
+          </Button>
+        </EmptyState>
+      )}
+
+      {/* Initial State - No Search Yet */}
+      {!searching && !searchResults && !error && (
+        <EmptyState
+          title={`Search ${tabConfig.label}`}
+          layout="vertical"
+          reverseOrder={false}
+        >
+          <Text>
+            {tabConfig.description}
+          </Text>
+          <Text format={{ italic: true }}>
+            Select a partner or set filters above to begin your search.
           </Text>
         </EmptyState>
       )}
@@ -666,199 +891,210 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
 };
 
 // ----------------------------------------------------------------------------
-// Filter Panel Component
+// Tab Content Component
 // ----------------------------------------------------------------------------
 
-interface FilterPanelProps {
-  schema: SchemaResponse;
-  programType: string;
+interface TabContentProps {
+  tabConfig: SearchTabConfig;
+  schema: SchemaResponse | null;
+  searchQuery: string;
+  selectedCompanies: string[];
+  companyOptions: PropertyOption[];
   activeFilters: Filter[];
+  searchResults: SearchResponse | null;
+  searching: boolean;
+  expandedPrograms: Set<string>;
+  onSearchQueryChange: (value: string) => void;
+  onSearchSubmit: () => void;
+  onCompaniesChange: (companies: string[]) => void;
   onAddFilter: (field: string, value: string | number | boolean | string[] | number[], operator?: string, objectType?: 'program' | 'session' | 'company') => void;
   onRemoveFilter: (field: string) => void;
   onClearAll: () => void;
-  facets?: FacetResult[];
-  allowedFields?: string[];
+  onToggleExpand: (programId: string) => void;
+  onPageChange: (page: number) => void;
+  buildLink: (objectType: 'program' | 'session' | 'company', objectId: string) => string;
 }
 
-const FilterPanel: React.FC<FilterPanelProps> = ({
+const TabContent: React.FC<TabContentProps> = ({
+  tabConfig,
   schema,
-  programType,
+  searchQuery,
+  selectedCompanies,
+  companyOptions,
   activeFilters,
+  searchResults,
+  searching,
+  onSearchQueryChange,
+  onSearchSubmit,
+  onCompaniesChange,
   onAddFilter,
   onRemoveFilter,
-  facets,
-  allowedFields,
+  buildLink,
 }) => {
-  // Get applicable filterable fields
-  const filterableFields = schema.filterableFields.filter(f => {
-    // Skip program_type - handled separately
-    if (f.field === 'program_type') return false;
+  return (
+    <Flex direction="column" gap="md">
+      {/* Tab Description */}
+      <Flex direction="row" align="center" gap="sm">
+        <StatusTag variant={tabConfig.colorVariant}>
+          {tabConfig.shortLabel}
+        </StatusTag>
+        <Text>{tabConfig.description}</Text>
+      </Flex>
+
+      {/* Quick Search Bar */}
+      <Tile>
+        <Flex direction="column" gap="sm">
+          <Text format={{ fontWeight: 'bold' }}>Quick Search</Text>
+          <Flex direction="row" gap="sm" align="end">
+            <Box>
+              <SearchInput
+                name="searchQuery"
+                label="Search programs, sessions, partners..."
+                placeholder="Type to search..."
+                value={searchQuery}
+                onChange={onSearchQueryChange}
+                onEnter={onSearchSubmit}
+              />
+            </Box>
+            <Button onClick={onSearchSubmit} disabled={searching}>
+              {searching ? 'Searching...' : 'Search'}
+            </Button>
+          </Flex>
+        </Flex>
+      </Tile>
+
+      {/* Partner Selection */}
+      <Tile>
+        <Flex direction="column" gap="sm">
+          <Flex direction="row" align="center" gap="xs">
+            <Text format={{ fontWeight: 'bold' }}>Step 1: Select Partners</Text>
+            {selectedCompanies.length > 0 && (
+              <StatusTag variant="success">{selectedCompanies.length} selected</StatusTag>
+            )}
+          </Flex>
+          <MultiSelect
+            name="companySelect"
+            label="Camp Partners"
+            placeholder="Select one or more camp partners..."
+            value={selectedCompanies}
+            options={companyOptions.map(c => ({ value: c.value, label: c.label }))}
+            onChange={(values) => onCompaniesChange(values as string[])}
+          />
+          {selectedCompanies.length > 0 && (
+            <Flex direction="row" gap="xs" wrap="wrap">
+              {selectedCompanies.slice(0, 5).map(companyName => (
+                <Tag key={companyName} variant="success">{companyName}</Tag>
+              ))}
+              {selectedCompanies.length > 5 && (
+                <Tag variant="default">+{selectedCompanies.length - 5} more</Tag>
+              )}
+            </Flex>
+          )}
+        </Flex>
+      </Tile>
+
+      {/* Filter Sections */}
+      {schema && (
+        <Tile>
+          <Flex direction="column" gap="sm">
+            <Flex direction="row" align="center" gap="xs">
+              <Text format={{ fontWeight: 'bold' }}>Step 2: Refine with Filters</Text>
+              {activeFilters.length > 0 && (
+                <StatusTag variant="info">{activeFilters.length} active</StatusTag>
+              )}
+            </Flex>
+
+            {tabConfig.filterCategories.map((category, idx) => (
+              <FilterCategory
+                key={`${category.title}-${idx}`}
+                category={category}
+                schema={schema}
+                activeFilters={activeFilters}
+                facets={searchResults?.facets}
+                onAddFilter={onAddFilter}
+                onRemoveFilter={onRemoveFilter}
+                tabProgramTypes={tabConfig.programTypes}
+              />
+            ))}
+          </Flex>
+        </Tile>
+      )}
+    </Flex>
+  );
+};
+
+// ----------------------------------------------------------------------------
+// Filter Category Component (Accordion-based)
+// ----------------------------------------------------------------------------
+
+interface FilterCategoryProps {
+  category: FilterCategoryConfig;
+  schema: SchemaResponse;
+  activeFilters: Filter[];
+  facets?: FacetResult[];
+  onAddFilter: (field: string, value: string | number | boolean | string[] | number[], operator?: string, objectType?: 'program' | 'session' | 'company') => void;
+  onRemoveFilter: (field: string) => void;
+  tabProgramTypes: string[];
+}
+
+const FilterCategory: React.FC<FilterCategoryProps> = ({
+  category,
+  schema,
+  activeFilters,
+  facets,
+  onAddFilter,
+  onRemoveFilter,
+  tabProgramTypes,
+}) => {
+  // Get applicable filterable fields for this category
+  const categoryFields = schema.filterableFields.filter(f => {
+    if (!category.fields.includes(f.field)) return false;
+
+    // Skip program_type unless explicitly in category
+    if (f.field === 'program_type' && !category.fields.includes('program_type')) {
+      return false;
+    }
 
     // Check record type applicability
-    if (f.applicableRecordTypes && programType) {
-      if (!f.applicableRecordTypes.includes('*') &&
-          !f.applicableRecordTypes.includes(programType)) {
-        return false;
-      }
+    if (f.applicableRecordTypes && tabProgramTypes.length > 0) {
+      const hasMatch = tabProgramTypes.some(pt =>
+        f.applicableRecordTypes!.includes('*') || f.applicableRecordTypes!.includes(pt)
+      );
+      if (!hasMatch) return false;
     }
-    if (f.applicableParentProgramTypes && programType) {
-      if (!f.applicableParentProgramTypes.includes('*') &&
-          !f.applicableParentProgramTypes.includes(programType)) {
-        return false;
-      }
+
+    if (f.applicableParentProgramTypes && tabProgramTypes.length > 0) {
+      const hasMatch = tabProgramTypes.some(pt =>
+        f.applicableParentProgramTypes!.includes('*') || f.applicableParentProgramTypes!.includes(pt)
+      );
+      if (!hasMatch) return false;
     }
+
     return true;
   });
 
-  const scopedFields = allowedFields
-    ? filterableFields.filter(field => allowedFields.includes(field.field))
-    : filterableFields;
+  // Don't render empty categories
+  if (categoryFields.length === 0) return null;
 
-  // Note: Company filters are now handled via the company multi-select at the top
-  // We don't show company filters in the filter panel anymore
-
-  // Organize into logical filter categories for progressive refinement workflows
-  // Category 1: Location/Geography - only program and session location fields
-  // (company location filters removed - company selection is handled separately)
-  const locationFields = ['region', 'locations'];
-  const locationFilters = scopedFields.filter(f => locationFields.includes(f.field));
-
-  // Category 2: Program Characteristics (type-specific attributes)
-  const programCharFields = ['primary_camp_type', 'camp_subtype', 'experience_subtype', 'specialty_subtype', 'gender_structure', 'is_brother_sister', 'programming_philosophy', 'accommodations'];
-  const programCharFilters = scopedFields.filter(f => programCharFields.includes(f.field));
-
-  // Category 3: Dates & Duration
-  const dateFields = ['start_date', 'end_date', 'weeks'];
-  const dateFilters = scopedFields.filter(f => dateFields.includes(f.field));
-
-  // Category 4: Age & Grade (eligibility)
-  const eligibilityFields = ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'];
-  const eligibilityFilters = scopedFields.filter(f => eligibilityFields.includes(f.field));
-
-  // Category 5: Price & Financial
-  const priceFields = ['tuition__current_', 'tuition_currency'];
-  const priceFilters = scopedFields.filter(f => priceFields.includes(f.field));
-
-  // Category 6: Activities & Options
-  const featureFields = ['sport_options', 'arts_options', 'education_options'];
-  const featureFilters = scopedFields.filter(f => featureFields.includes(f.field));
+  // Count active filters in this category
+  const activeCount = activeFilters.filter(f => category.fields.includes(f.field)).length;
+  const titleWithCount = activeCount > 0
+    ? `${category.title} (${activeCount} active)`
+    : category.title;
 
   return (
-    <Accordion title="Step 3: Additional Filters" defaultOpen={true}>
-      <Flex direction="column" gap="md">
-        {/* Location & Geography */}
-        {locationFilters.length > 0 && (
-          <Box>
-            <Text format={{ fontWeight: 'demibold' }}>Location & Destinations</Text>
-            <Flex direction="row" gap="sm" wrap="wrap">
-              {locationFilters.map(field => (
-                <FilterControl
-                  key={field.field}
-                  field={field}
-                  activeFilters={activeFilters}
-                  facets={facets}
-                  onAddFilter={onAddFilter}
-                  onRemoveFilter={onRemoveFilter}
-                />
-              ))}
-            </Flex>
-          </Box>
-        )}
-
-        {/* Program Characteristics */}
-        {programCharFilters.length > 0 && (
-          <Box>
-            <Text format={{ fontWeight: 'demibold' }}>Program Characteristics</Text>
-            <Flex direction="row" gap="sm" wrap="wrap">
-              {programCharFilters.map(field => (
-                <FilterControl
-                  key={field.field}
-                  field={field}
-                  activeFilters={activeFilters}
-                  facets={facets}
-                  onAddFilter={onAddFilter}
-                  onRemoveFilter={onRemoveFilter}
-                />
-              ))}
-            </Flex>
-          </Box>
-        )}
-
-        {/* Dates & Duration */}
-        {dateFilters.length > 0 && (
-          <Box>
-            <Text format={{ fontWeight: 'demibold' }}>Dates & Duration</Text>
-            <Flex direction="row" gap="sm" wrap="wrap">
-              {dateFilters.map(field => (
-                <FilterControl
-                  key={field.field}
-                  field={field}
-                  activeFilters={activeFilters}
-                  facets={facets}
-                  onAddFilter={onAddFilter}
-                  onRemoveFilter={onRemoveFilter}
-                />
-              ))}
-            </Flex>
-          </Box>
-        )}
-
-        {/* Age & Grade Eligibility */}
-        {eligibilityFilters.length > 0 && (
-          <Box>
-            <Text format={{ fontWeight: 'demibold' }}>Age & Grade Eligibility</Text>
-            <Flex direction="row" gap="sm" wrap="wrap">
-              {eligibilityFilters.map(field => (
-                <FilterControl
-                  key={field.field}
-                  field={field}
-                  activeFilters={activeFilters}
-                  facets={facets}
-                  onAddFilter={onAddFilter}
-                  onRemoveFilter={onRemoveFilter}
-                />
-              ))}
-            </Flex>
-          </Box>
-        )}
-
-        {/* Price & Tuition */}
-        {priceFilters.length > 0 && (
-          <Box>
-            <Text format={{ fontWeight: 'demibold' }}>Price & Tuition</Text>
-            <Flex direction="row" gap="sm" wrap="wrap">
-              {priceFilters.map(field => (
-                <FilterControl
-                  key={field.field}
-                  field={field}
-                  activeFilters={activeFilters}
-                  facets={facets}
-                  onAddFilter={onAddFilter}
-                  onRemoveFilter={onRemoveFilter}
-                />
-              ))}
-            </Flex>
-          </Box>
-        )}
-
-        {/* Activities & Options */}
-        {featureFilters.length > 0 && (
-          <Box>
-            <Text format={{ fontWeight: 'demibold' }}>Activities & Options</Text>
-            <Flex direction="row" gap="sm" wrap="wrap">
-              {featureFilters.map(field => (
-                <FilterControl
-                  key={field.field}
-                  field={field}
-                  activeFilters={activeFilters}
-                  facets={facets}
-                  onAddFilter={onAddFilter}
-                  onRemoveFilter={onRemoveFilter}
-                />
-              ))}
-            </Flex>
-          </Box>
-        )}
+    <Accordion title={titleWithCount} defaultOpen={category.defaultOpen}>
+      <Flex direction="row" gap="sm" wrap="wrap">
+        {categoryFields.map(field => (
+          <FilterControl
+            key={field.field}
+            field={field}
+            activeFilters={activeFilters}
+            facets={facets}
+            onAddFilter={onAddFilter}
+            onRemoveFilter={onRemoveFilter}
+          />
+        ))}
       </Flex>
     </Accordion>
   );
@@ -1008,12 +1244,11 @@ const FilterControl: React.FC<FilterControlProps> = ({
             value={currentFilter?.value as number || undefined}
             onChange={(value) => {
               if (value !== undefined && value !== null) {
-                // Determine operator based on field name
                 let operator = 'eq';
                 if (field.field.includes('min') || field.field === 'age__min_' || field.field === 'grade_range_min') {
-                  operator = 'lte'; // User's child age must be >= session min age
+                  operator = 'lte';
                 } else if (field.field.includes('max') || field.field === 'age__max_' || field.field === 'grade_range_max') {
-                  operator = 'gte'; // User's child age must be <= session max age
+                  operator = 'gte';
                 }
                 onAddFilter(field.field, value, operator, field.objectType);
               } else {
@@ -1031,15 +1266,17 @@ const FilterControl: React.FC<FilterControlProps> = ({
           <DateInput
             name={field.field}
             label={field.label}
-            value={typeof currentFilter?.value === 'string' ? { year: parseInt(currentFilter.value.slice(0, 4)), month: parseInt(currentFilter.value.slice(5, 7)), date: parseInt(currentFilter.value.slice(8, 10)) } : undefined}
+            value={typeof currentFilter?.value === 'string' ? {
+              year: parseInt(currentFilter.value.slice(0, 4)),
+              month: parseInt(currentFilter.value.slice(5, 7)),
+              date: parseInt(currentFilter.value.slice(8, 10))
+            } : undefined}
             onChange={(payload: { year?: number; month?: number; date?: number } | null) => {
               if (payload && payload.year && payload.month && payload.date) {
-                // Determine operator based on field name
                 let operator = 'gte';
                 if (field.field === 'end_date' || field.field.includes('end')) {
                   operator = 'lte';
                 }
-                // Convert to ISO date string for filter value
                 const dateValue = `${payload.year}-${String(payload.month).padStart(2, '0')}-${String(payload.date).padStart(2, '0')}`;
                 onAddFilter(field.field, dateValue, operator, field.objectType);
               } else {
@@ -1066,6 +1303,7 @@ interface SearchResultsPanelProps {
   onPageChange: (page: number) => void;
   buildLink: (objectType: 'program' | 'session' | 'company', objectId: string) => string;
   schema: SchemaResponse | null;
+  tabConfig: SearchTabConfig;
 }
 
 const SearchResultsPanel: React.FC<SearchResultsPanelProps> = ({
@@ -1075,36 +1313,36 @@ const SearchResultsPanel: React.FC<SearchResultsPanelProps> = ({
   onPageChange,
   buildLink,
   schema,
+  tabConfig,
 }) => {
-  if (results.totalCount === 0) {
-    return (
-      <EmptyState
-        title="No Results Found"
-        layout="vertical"
-      >
-        <Text>
-          Try adjusting your filters or search terms.
-        </Text>
-      </EmptyState>
-    );
-  }
-
   return (
     <Flex direction="column" gap="md">
-      {/* Results Summary */}
-      <Flex direction="row" justify="between" align="center">
-        <Text>
-          Found {results.totalCount} programs with matching sessions
-          {results.searchTime > 0 && ` (${results.searchTime}ms)`}
-        </Text>
-        <Text>
-          Page {results.page} of {results.totalPages}
-        </Text>
-      </Flex>
+      {/* Results Header */}
+      <Tile>
+        <Flex direction="row" justify="between" align="center">
+          <Flex direction="column" gap="xs">
+            <Text format={{ fontWeight: 'bold' }}>
+              Step 3: Review Results
+            </Text>
+            <Text>
+              Found {results.totalCount} programs with matching sessions
+              {results.searchTime > 0 && ` (${results.searchTime}ms)`}
+            </Text>
+          </Flex>
+          <Flex direction="row" align="center" gap="sm">
+            <StatusTag variant={tabConfig.colorVariant}>
+              {tabConfig.shortLabel}
+            </StatusTag>
+            <Text>
+              Page {results.page} of {results.totalPages}
+            </Text>
+          </Flex>
+        </Flex>
+      </Tile>
 
       {/* Results List */}
       {results.results.map((result) => (
-        <ProgramResultTile
+        <ProgramResultCard
           key={result.program.id}
           result={result}
           isExpanded={expandedPrograms.has(result.program.id)}
@@ -1116,35 +1354,39 @@ const SearchResultsPanel: React.FC<SearchResultsPanelProps> = ({
 
       {/* Pagination */}
       {results.totalPages > 1 && (
-        <Flex direction="row" justify="center" gap="sm">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={results.page <= 1}
-            onClick={() => onPageChange(results.page - 1)}
-          >
-            Previous
-          </Button>
-          <Text>Page {results.page} of {results.totalPages}</Text>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={results.page >= results.totalPages}
-            onClick={() => onPageChange(results.page + 1)}
-          >
-            Next
-          </Button>
-        </Flex>
+        <Tile>
+          <Flex direction="row" justify="center" align="center" gap="md">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={results.page <= 1}
+              onClick={() => onPageChange(results.page - 1)}
+            >
+              ← Previous
+            </Button>
+            <Text format={{ fontWeight: 'demibold' }}>
+              Page {results.page} of {results.totalPages}
+            </Text>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={results.page >= results.totalPages}
+              onClick={() => onPageChange(results.page + 1)}
+            >
+              Next →
+            </Button>
+          </Flex>
+        </Tile>
       )}
     </Flex>
   );
 };
 
 // ----------------------------------------------------------------------------
-// Program Result Tile
+// Program Result Card (Enhanced)
 // ----------------------------------------------------------------------------
 
-interface ProgramResultTileProps {
+interface ProgramResultCardProps {
   result: SearchResult;
   isExpanded: boolean;
   onToggleExpand: () => void;
@@ -1152,7 +1394,7 @@ interface ProgramResultTileProps {
   schema: SchemaResponse | null;
 }
 
-const ProgramResultTile: React.FC<ProgramResultTileProps> = ({
+const ProgramResultCard: React.FC<ProgramResultCardProps> = ({
   result,
   isExpanded,
   onToggleExpand,
@@ -1165,121 +1407,145 @@ const ProgramResultTile: React.FC<ProgramResultTileProps> = ({
   const programType = String(program.properties.program_type || '');
   const programTypeLabel = schema?.programProperties?.recordTypes?.[programType]?.label || programType;
   const companyName = company?.properties.name ? String(company.properties.name) : 'Unknown Partner';
-  const shortProgramName = company?.properties.short_program_name ? String(company.properties.short_program_name) : '';
 
-  // Program location (region)
+  // Program details
   const programRegion = program.properties.region ? String(program.properties.region) : '';
+  const primaryCampType = program.properties.primary_camp_type ? String(program.properties.primary_camp_type) : '';
+  const genderStructure = program.properties.gender_structure
+    ? getOptionDisplayLabel(schema, 'program', 'gender_structure', String(program.properties.gender_structure))
+    : '';
+  const isBrotherSister = program.properties.is_brother_sister === true;
 
-  // Company (Partner) location info
+  // Company location
   const companyState = company?.properties.us_state ? String(company.properties.us_state) : '';
   const companyCountry = company?.properties.country_hq ? String(company.properties.country_hq) : '';
   const companyLocation = [companyState, companyCountry].filter(Boolean).join(', ');
-
-  // Partner status
   const partnerStatus = company?.properties.lifecyclestage ? String(company.properties.lifecyclestage) : '';
 
-  // Program-type specific attributes
-  const primaryCampType = program.properties.primary_camp_type ? String(program.properties.primary_camp_type) : '';
-  const campSubtype = program.properties.camp_subtype ? String(program.properties.camp_subtype) : '';
-  const experienceSubtype = program.properties.experience_subtype ? String(program.properties.experience_subtype) : '';
-  const specialtySubtype = program.properties.specialty_subtype ? String(program.properties.specialty_subtype) : '';
-  const programSubtype = campSubtype || experienceSubtype || specialtySubtype || '';
-
-  // Get label for gender structure
-  const genderStructure = program.properties.gender_structure ? getOptionDisplayLabel(schema, 'program', 'gender_structure', String(program.properties.gender_structure)) : '';
-  const isBrotherSister = program.properties.is_brother_sister === true;
+  // Session summary
+  const firstSession = sessions[0];
+  const sessionAgeRange = firstSession
+    ? `${firstSession.properties.age__min_ || '?'}-${firstSession.properties.age__max_ || '?'} years`
+    : '';
+  const sessionTuitionRange = sessions.length > 0
+    ? formatCurrencyRange(sessions.map(s => Number(s.properties.tuition__current_) || 0))
+    : '';
 
   return (
     <Tile>
       <Flex direction="column" gap="sm">
-        {/* Program Header */}
+        {/* Header Row */}
         <Flex direction="row" justify="between" align="start">
           <Flex direction="column" gap="xs">
+            {/* Program Name & Type */}
             <Flex direction="row" gap="sm" align="center">
               <Link href={buildLink('program', program.id)}>
                 <Text format={{ fontWeight: 'bold' }}>{programName}</Text>
               </Link>
-              {programTypeLabel && <Tag>{programTypeLabel}</Tag>}
-              {program.properties.program_status === 'active' && <Tag variant="success">Active</Tag>}
-              {program.properties.program_status === 'coming_soon' && <Tag variant="warning">Coming Soon</Tag>}
-            </Flex>
-
-            {/* Company/Partner Info with deep-link */}
-            <Flex direction="row" gap="sm" align="center">
-              {company && (
-                <>
-                  <Text format={{ fontWeight: 'demibold' }}>Partner:</Text>
-                  <Link href={buildLink('company', company.id)}>
-                    <Text>{companyName}</Text>
-                  </Link>
-                  {companyLocation && <Text>({companyLocation})</Text>}
-                  {partnerStatus === 'customer' && <Tag variant="success">Active Partner</Tag>}
-                </>
+              {programTypeLabel && (
+                <StatusTag variant="info">{formatMultiValue(programTypeLabel)}</StatusTag>
               )}
             </Flex>
 
-            {/* Program Location */}
-            {programRegion && (
-              <Flex direction="row" gap="sm">
-                <Text>Region: {formatMultiValue(programRegion)}</Text>
-              </Flex>
-            )}
+            {/* Partner Info */}
+            <Flex direction="row" gap="sm" align="center">
+              {company && (
+                <>
+                  <Link href={buildLink('company', company.id)}>
+                    <Text format={{ fontWeight: 'demibold' }}>{companyName}</Text>
+                  </Link>
+                  {companyLocation && <Text>• {companyLocation}</Text>}
+                  {partnerStatus === 'customer' && (
+                    <StatusTag variant="success">Active Partner</StatusTag>
+                  )}
+                </>
+              )}
+            </Flex>
           </Flex>
 
-          <Flex direction="column" align="end">
-            <Text>
-              {matchingSessionCount} of {totalSessionCount} sessions match
-            </Text>
-            <Button
-              variant="secondary"
-              size="xs"
-              onClick={onToggleExpand}
-            >
-              {isExpanded ? 'Hide Sessions' : 'Show Sessions'}
+          {/* Session Count & Expand Button */}
+          <Flex direction="column" align="end" gap="xs">
+            <Tag variant="default">
+              {matchingSessionCount} of {totalSessionCount} sessions
+            </Tag>
+            <Button variant="secondary" size="xs" onClick={onToggleExpand}>
+              {isExpanded ? 'Hide Details' : 'Show Details'}
             </Button>
           </Flex>
         </Flex>
 
-        {/* Program Attributes */}
-        <Flex direction="row" gap="sm" wrap="wrap">
+        {/* Program Attributes (Tags) */}
+        <Flex direction="row" gap="xs" wrap="wrap">
+          {programRegion && <Tag>{formatMultiValue(programRegion)}</Tag>}
           {primaryCampType && <Tag>{formatMultiValue(primaryCampType)}</Tag>}
-          {programSubtype && <Tag>{formatMultiValue(programSubtype)}</Tag>}
           {genderStructure && genderStructure !== 'none' && <Tag>{genderStructure}</Tag>}
-          {isBrotherSister && <Tag>Brother/Sister Camp</Tag>}
-          {program.properties.programming_philosophy && <Tag variant="info">{formatMultiValue(String(program.properties.programming_philosophy))}</Tag>}
+          {isBrotherSister && <Tag variant="warning">Brother/Sister</Tag>}
+          {sessionAgeRange && <Tag variant="default">Ages: {sessionAgeRange}</Tag>}
+          {sessionTuitionRange && <Tag variant="default">{sessionTuitionRange}</Tag>}
         </Flex>
 
-        {/* Sessions Table (expanded) */}
-        {isExpanded && sessions.length > 0 && (
-          <Box>
+        {/* Expanded Details */}
+        {isExpanded && (
+          <>
             <Divider />
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableHeader>Session</TableHeader>
-                  <TableHeader>Dates</TableHeader>
-                  <TableHeader>Ages</TableHeader>
-                  <TableHeader>Weeks</TableHeader>
-                  <TableHeader>Tuition</TableHeader>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {sessions.slice(0, 10).map((session) => (
-                  <SessionRow
-                    key={session.id}
-                    session={session}
-                    buildLink={buildLink}
-                  />
-                ))}
-              </TableBody>
-            </Table>
-            {sessions.length > 10 && (
-              <Text>
-                Showing 10 of {sessions.length} sessions.{' '}
-                <Link href={buildLink('program', program.id)}>View all in HubSpot</Link>
-              </Text>
+
+            {/* Program Details using DescriptionList */}
+            <DescriptionList direction="row">
+              {programRegion && (
+                <DescriptionListItem label="Region">
+                  <Text>{formatMultiValue(programRegion)}</Text>
+                </DescriptionListItem>
+              )}
+              {primaryCampType && (
+                <DescriptionListItem label="Camp Type">
+                  <Text>{formatMultiValue(primaryCampType)}</Text>
+                </DescriptionListItem>
+              )}
+              {genderStructure && (
+                <DescriptionListItem label="Gender">
+                  <Text>{genderStructure}</Text>
+                </DescriptionListItem>
+              )}
+              {program.properties.programming_philosophy && (
+                <DescriptionListItem label="Philosophy">
+                  <Text>{formatMultiValue(String(program.properties.programming_philosophy))}</Text>
+                </DescriptionListItem>
+              )}
+            </DescriptionList>
+
+            {/* Sessions Table */}
+            {sessions.length > 0 && (
+              <Box>
+                <Text format={{ fontWeight: 'demibold' }}>Matching Sessions:</Text>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableHeader>Session</TableHeader>
+                      <TableHeader>Dates</TableHeader>
+                      <TableHeader>Ages</TableHeader>
+                      <TableHeader>Duration</TableHeader>
+                      <TableHeader>Tuition</TableHeader>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {sessions.slice(0, 10).map((session) => (
+                      <SessionRow
+                        key={session.id}
+                        session={session}
+                        buildLink={buildLink}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+                {sessions.length > 10 && (
+                  <Text format={{ italic: true }}>
+                    Showing 10 of {sessions.length} sessions.{' '}
+                    <Link href={buildLink('program', program.id)}>View all in HubSpot →</Link>
+                  </Text>
+                )}
+              </Box>
             )}
-          </Box>
+          </>
         )}
       </Flex>
     </Tile>
@@ -1307,10 +1573,10 @@ const SessionRow: React.FC<SessionRowProps> = ({ session, buildLink }) => {
   const ageMax = props.age__max_;
   const ageRange = ageMin && ageMax ? `${ageMin}-${ageMax}` :
                    ageMin ? `${ageMin}+` :
-                   ageMax ? `up to ${ageMax}` : '';
+                   ageMax ? `up to ${ageMax}` : '-';
 
-  const tuition = props.tuition__current_ ? formatCurrency(Number(props.tuition__current_)) : '';
-  const weeks = props.weeks ? `${props.weeks} wks` : '';
+  const tuition = props.tuition__current_ ? formatCurrency(Number(props.tuition__current_)) : '-';
+  const weeks = props.weeks ? `${props.weeks} wks` : '-';
 
   return (
     <TableRow>
@@ -1352,7 +1618,6 @@ function getOptionDisplayLabel(
 ): string {
   if (!schema) return value;
 
-  // Find the field in filterable fields
   const field = schema.filterableFields.find(
     f => f.field === fieldName && f.objectType === objectType
   );
@@ -1366,11 +1631,9 @@ function getOptionDisplayLabel(
 }
 
 function formatMultiValue(value: string): string {
-  // Handle semicolon-separated multi-values
   if (value.includes(';')) {
     return value.split(';').map(v => v.trim()).join(', ');
   }
-  // Convert snake_case to Title Case
   return value.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
@@ -1383,6 +1646,19 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+function formatCurrencyRange(amounts: number[]): string {
+  const validAmounts = amounts.filter(a => a > 0);
+  if (validAmounts.length === 0) return '';
+
+  const min = Math.min(...validAmounts);
+  const max = Math.max(...validAmounts);
+
+  if (min === max) {
+    return formatCurrency(min);
+  }
+  return `${formatCurrency(min)} - ${formatCurrency(max)}`;
+}
+
 function getFilterLabel(schema: SchemaResponse | null, filter: Filter): string {
   if (!schema) return `${filter.field}: ${filter.value}`;
 
@@ -1390,7 +1666,9 @@ function getFilterLabel(schema: SchemaResponse | null, filter: Filter): string {
   const fieldLabel = field?.label || filter.field;
 
   let valueLabel = String(filter.value);
-  if (field?.options) {
+  if (Array.isArray(filter.value)) {
+    valueLabel = filter.value.length + ' selected';
+  } else if (field?.options) {
     const option = field.options.find(o => o.value === String(filter.value));
     if (option) {
       valueLabel = option.label;
