@@ -1,0 +1,101 @@
+{
+  "objectType": "company",
+  "displayName": "Partner",
+  "properties": [
+    {
+      "name": "name",
+      "label": "Partner Name",
+      "type": "string",
+      "fieldType": "text",
+      "description": "Name of the partner organization",
+      "searchable": true,
+      "filterable": false,
+      "facetable": false,
+      "displayInResults": true,
+      "displayOrder": 1,
+      "required": true
+    },
+    {
+      "name": "domain",
+      "label": "Website Domain",
+      "type": "string",
+      "fieldType": "text",
+      "description": "Partner website domain",
+      "searchable": true,
+      "filterable": false,
+      "facetable": false,
+      "displayInResults": false,
+      "displayOrder": 2
+    },
+    {
+      "name": "city",
+      "label": "City",
+      "type": "string",
+      "fieldType": "text",
+      "description": "City where partner is headquartered",
+      "searchable": true,
+      "filterable": false,
+      "facetable": false,
+      "displayInResults": true,
+      "displayOrder": 3
+    },
+    {
+      "name": "state",
+      "label": "State/Province",
+      "type": "string",
+      "fieldType": "text",
+      "description": "State or province",
+      "searchable": true,
+      "filterable": true,
+      "facetable": true,
+      "displayInResults": true,
+      "displayOrder": 4
+    },
+    {
+      "name": "country",
+      "label": "Country",
+      "type": "string",
+      "fieldType": "text",
+      "description": "Country",
+      "searchable": true,
+      "filterable": true,
+      "facetable": true,
+      "displayInResults": true,
+      "displayOrder": 5
+    },
+    {
+      "name": "phone",
+      "label": "Phone",
+      "type": "string",
+      "fieldType": "text",
+      "description": "Main phone number",
+      "searchable": false,
+      "filterable": false,
+      "facetable": false,
+      "displayInResults": false,
+      "displayOrder": 6
+    },
+    {
+      "name": "lifecyclestage",
+      "label": "Partner Status",
+      "type": "enumeration",
+      "fieldType": "select",
+      "description": "Status of the partner relationship",
+      "searchable": false,
+      "filterable": true,
+      "facetable": true,
+      "displayInResults": true,
+      "displayOrder": 7,
+      "options": [
+        {"value": "subscriber", "label": "Subscriber", "displayOrder": 1},
+        {"value": "lead", "label": "Lead", "displayOrder": 2},
+        {"value": "marketingqualifiedlead", "label": "Marketing Qualified Lead", "displayOrder": 3},
+        {"value": "salesqualifiedlead", "label": "Sales Qualified Lead", "displayOrder": 4},
+        {"value": "opportunity", "label": "Opportunity", "displayOrder": 5},
+        {"value": "customer", "label": "Customer", "displayOrder": 6},
+        {"value": "evangelist", "label": "Evangelist", "displayOrder": 7},
+        {"value": "other", "label": "Other", "displayOrder": 8}
+      ]
+    }
+  ]
+}

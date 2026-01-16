@@ -20,8 +20,8 @@ import type {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Path to schema files (relative to project root)
-const SCHEMA_DIR = join(__dirname, '../../Search_function/schemas');
+// Path to schema files (inside backend directory for Vercel deployment)
+const SCHEMA_DIR = join(__dirname, '../schemas');
 
 // Cached schema data
 let searchConfig: SearchConfig | null = null;
