@@ -1,16 +1,14 @@
 {
   "version": 2,
-  "functions": {
-    "api/search.ts": {
-      "maxDuration": 60
-    },
-    "api/cache.ts": {
-      "maxDuration": 60
-    },
-    "api/schema.ts": {
-      "maxDuration": 10
+  "builds": [
+    {
+      "src": "api/**/*.ts",
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 60
+      }
     }
-  },
+  ],
   "env": {
     "NODE_ENV": "production"
   }
