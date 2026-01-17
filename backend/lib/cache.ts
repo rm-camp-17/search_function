@@ -92,7 +92,6 @@ async function fetchHubSpotObjects(
     const response = await fetch(url.toString(), {
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
       },
     });
 
@@ -132,7 +131,6 @@ async function fetchAssociations(
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         inputs: batch.map(id => ({ id })),
