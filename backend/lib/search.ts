@@ -52,23 +52,47 @@ export function executeSearch(request: SearchRequest): SearchResponse {
     includeEmptyResults = false,
   } = request;
 
-  // Get all programs
+  // Get all programs from cache
   let programs = getAllPrograms();
 
-  // Step 1: Filter by program type if specified
+  console.log(`[Search] Starting search - Total programs in cache: ${programs.length}`);
+  console.log(`[Search] Request - programType: "${programType}", includeEmptyResults: ${includeEmptyResults}, query: "${query || ''}"`);
+
+  // Step 1: Filter by program type if specified (case-insensitive)
   if (programType) {
-    programs = programs.filter(p =>
-      p.properties.program_type === programType
-    );
+    const programTypeLower = programType.toLowerCase();
+    const beforeCount = programs.length;
+    programs = programs.filter(p => {
+      const pType = p.properties.program_type;
+      if (!pType) return false;
+      return String(pType).toLowerCase() === programTypeLower;
+    });
+    console.log(`[Search] After program_type filter "${programType}": ${programs.length} programs (was ${beforeCount})`);
+
+    // If nothing matched, log sample of actual program types in data
+    if (programs.length === 0 && beforeCount > 0) {
+      const allPrograms = getAllPrograms();
+      const sampleTypes = new Set<string>();
+      for (let i = 0; i < Math.min(50, allPrograms.length); i++) {
+        const pt = allPrograms[i].properties.program_type;
+        if (pt) sampleTypes.add(String(pt));
+      }
+      console.log(`[Search] WARNING: No programs matched. Sample program_type values in data: ${Array.from(sampleTypes).join(', ')}`);
+    }
   }
 
   // Step 2: Apply program-level filters
-  if (filters) {
+  if (filters && filters.filters.length > 0) {
+    const beforeCount = programs.length;
     programs = applyFiltersToPrograms(programs, filters, programType);
+    console.log(`[Search] After program filters: ${programs.length} programs (was ${beforeCount})`);
   }
 
   // Step 3: For each program, get matching sessions and apply company filters
   const results: SearchResult[] = [];
+  let programsWithNoSessions = 0;
+  let programsWithSessions = 0;
+  let totalSessionsFound = 0;
 
   // Extract company filters if any
   const hasCompanyFilters = filters?.filters.some(f =>
@@ -78,9 +102,16 @@ export function executeSearch(request: SearchRequest): SearchResponse {
   for (const program of programs) {
     let sessions = getSessionsForProgram(program.id);
     const totalSessionCount = sessions.length;
+    totalSessionsFound += totalSessionCount;
+
+    if (totalSessionCount > 0) {
+      programsWithSessions++;
+    } else {
+      programsWithNoSessions++;
+    }
 
     // Apply session-level filters
-    if (filters) {
+    if (filters && filters.filters.length > 0) {
       sessions = applyFiltersToSessions(sessions, filters, programType);
     }
 
@@ -114,6 +145,8 @@ export function executeSearch(request: SearchRequest): SearchResponse {
     });
   }
 
+  console.log(`[Search] Session stats: ${programsWithSessions} programs have sessions, ${programsWithNoSessions} programs have no sessions, ${totalSessionsFound} total sessions found`);
+
   // Step 4: Apply text search if query provided
   let scoredResults = results;
   if (query && query.trim().length > 0) {
@@ -134,6 +167,8 @@ export function executeSearch(request: SearchRequest): SearchResponse {
 
   // Step 8: Build applied filters summary
   const appliedFilters = buildAppliedFiltersSummary(filters);
+
+  console.log(`[Search] Final results: ${totalCount} total, returning page ${page} with ${paginatedResults.length} results`);
 
   return {
     results: paginatedResults,

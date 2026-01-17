@@ -1,6 +1,7 @@
 // ============================================================================
 // Data Cache Manager
 // Handles hourly refresh and in-memory storage of HubSpot data
+// Uses HubSpot associations as the source of truth for relationships
 // ============================================================================
 
 import type {
@@ -29,6 +30,12 @@ const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 const HUBSPOT_API_BASE = 'https://api.hubapi.com';
 const PROGRAM_OBJECT_TYPE = '2-50911446';
 const SESSION_OBJECT_TYPE = '2-50911450';
+
+// Rate limiting configuration - be conservative to avoid 429s
+const ASSOCIATION_BATCH_SIZE = 50; // Smaller batches
+const ASSOCIATION_BATCH_DELAY_MS = 500; // 500ms between batches
+const ASSOCIATION_RETRY_DELAY_MS = 3000; // 3s initial retry delay
+const ASSOCIATION_MAX_RETRIES = 5;
 
 // Get access token from environment
 export function getAccessToken(): string {
@@ -118,61 +125,79 @@ async function fetchAssociations(
 
   if (objectIds.length === 0) return associations;
 
-  // Batch requests (max 100 at a time)
+  // Use smaller batches to avoid rate limits
   const batches: string[][] = [];
-  for (let i = 0; i < objectIds.length; i += 100) {
-    batches.push(objectIds.slice(i, i + 100));
+  for (let i = 0; i < objectIds.length; i += ASSOCIATION_BATCH_SIZE) {
+    batches.push(objectIds.slice(i, i + ASSOCIATION_BATCH_SIZE));
   }
 
-  // Process batches with delays to avoid rate limiting
+  console.log(`Fetching associations in ${batches.length} batches of ${ASSOCIATION_BATCH_SIZE}...`);
+
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i];
     const url = `${HUBSPOT_API_BASE}/crm/v4/associations/${fromObjectType}/${toObjectType}/batch/read`;
 
     let retries = 0;
-    const maxRetries = 3;
     let success = false;
 
-    while (!success && retries < maxRetries) {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          inputs: batch.map(id => ({ id })),
-        }),
-      });
+    while (!success && retries < ASSOCIATION_MAX_RETRIES) {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            inputs: batch.map(id => ({ id })),
+          }),
+        });
 
-      if (response.status === 429) {
-        // Rate limited - wait and retry with exponential backoff
-        retries++;
-        const waitTime = Math.pow(2, retries) * 1000; // 2s, 4s, 8s
-        console.log(`Rate limited, waiting ${waitTime}ms before retry ${retries}/${maxRetries}`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        continue;
-      }
-
-      if (!response.ok) {
-        console.error(`Association fetch failed: ${response.status}`);
-        break;
-      }
-
-      const data = await response.json() as { results?: Array<{ from?: { id: string }; to?: Array<{ toObjectId: string }> }> };
-      for (const result of data.results || []) {
-        const fromId = result.from?.id;
-        const toIds = (result.to || []).map((t) => t.toObjectId);
-        if (fromId && toIds.length > 0) {
-          associations.set(fromId, toIds);
+        if (response.status === 429) {
+          // Rate limited - wait with exponential backoff
+          retries++;
+          const waitTime = ASSOCIATION_RETRY_DELAY_MS * Math.pow(2, retries - 1);
+          console.log(`Rate limited on batch ${i + 1}/${batches.length}, waiting ${waitTime}ms (retry ${retries}/${ASSOCIATION_MAX_RETRIES})`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          continue;
         }
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Association fetch failed for batch ${i + 1}: ${response.status} - ${errorText}`);
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, ASSOCIATION_RETRY_DELAY_MS));
+          continue;
+        }
+
+        const data = await response.json() as { results?: Array<{ from?: { id: string }; to?: Array<{ toObjectId: string }> }> };
+        for (const result of data.results || []) {
+          const fromId = result.from?.id;
+          const toIds = (result.to || []).map((t) => t.toObjectId);
+          if (fromId && toIds.length > 0) {
+            associations.set(fromId, toIds);
+          }
+        }
+        success = true;
+
+        // Log progress every 10 batches
+        if ((i + 1) % 10 === 0) {
+          console.log(`  Processed ${i + 1}/${batches.length} batches, ${associations.size} associations found so far`);
+        }
+      } catch (error) {
+        console.error(`Error fetching associations batch ${i + 1}:`, error);
+        retries++;
+        await new Promise(resolve => setTimeout(resolve, ASSOCIATION_RETRY_DELAY_MS));
       }
-      success = true;
     }
 
-    // Add small delay between batches to avoid rate limits (100ms)
+    if (!success) {
+      console.error(`Failed to fetch associations for batch ${i + 1} after ${ASSOCIATION_MAX_RETRIES} retries`);
+    }
+
+    // Delay between batches to avoid rate limits
     if (i < batches.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, ASSOCIATION_BATCH_DELAY_MS));
     }
   }
 
@@ -194,7 +219,6 @@ export async function refreshCache(accessToken: string): Promise<void> {
 
   try {
     // Define properties to fetch for each object type
-    // These match the actual HubSpot schema properties
     const companyProperties = [
       'name', 'short_program_name', 'domain', 'email', 'phone', 'phone_2',
       'country_hq', 'us_state', 'four_sentence_summary_for_parents',
@@ -216,10 +240,11 @@ export async function refreshCache(accessToken: string): Promise<void> {
       'age__min_', 'age__max_', 'grade_range_min', 'grade_range_max',
       'tuition__current_', 'tuition_currency', 'program_type', 'primary_camp_type',
       'experience_subtype', 'specialty_subtype', 'locations', 'sport_options',
-      'arts_options', 'education_options', 'itinerary', 'notes__c', 'program_id__external_',
+      'arts_options', 'education_options', 'itinerary', 'notes__c',
     ];
 
-    // Fetch all data in parallel
+    // Fetch all objects in parallel (fast, no rate limit issues)
+    console.log('Fetching objects from HubSpot...');
     const [companies, programs, sessions] = await Promise.all([
       fetchHubSpotObjects(accessToken, 'companies', companyProperties),
       fetchHubSpotObjects(accessToken, PROGRAM_OBJECT_TYPE, programProperties),
@@ -228,23 +253,7 @@ export async function refreshCache(accessToken: string): Promise<void> {
 
     console.log(`Fetched ${companies.length} companies, ${programs.length} programs, ${sessions.length} sessions`);
 
-    // Fetch associations - do sequentially to avoid rate limits
-    const programIds = programs.map(p => p.id);
-    console.log(`Fetching associations for ${programIds.length} programs...`);
-
-    // Fetch program -> company associations first
-    const programToCompanyAssoc = await fetchAssociations(
-      accessToken, PROGRAM_OBJECT_TYPE, 'companies', programIds
-    );
-    console.log(`Fetched ${programToCompanyAssoc.size} program-company associations`);
-
-    // Then fetch program -> session associations
-    const programToSessionAssoc = await fetchAssociations(
-      accessToken, PROGRAM_OBJECT_TYPE, SESSION_OBJECT_TYPE, programIds
-    );
-    console.log(`Fetched ${programToSessionAssoc.size} program-session associations`);
-
-    // Build new cache
+    // Build new cache maps for objects first
     const newCompanies = new Map<string, Company>();
     const newPrograms = new Map<string, Program>();
     const newSessions = new Map<string, Session>();
@@ -271,28 +280,68 @@ export async function refreshCache(accessToken: string): Promise<void> {
       });
     }
 
-    // Process programs with associations
+    // Process programs
     for (const obj of programs) {
-      const companyIds = programToCompanyAssoc.get(obj.id);
-      const sessionIds = programToSessionAssoc.get(obj.id) || [];
-
-      const companyId = companyIds?.[0]; // Take first associated company
-
       newPrograms.set(obj.id, {
         id: obj.id,
         properties: parseProgramProperties(obj.properties),
         createdAt: obj.createdAt,
         updatedAt: obj.updatedAt,
-        companyId,
       });
+    }
 
-      if (companyId) {
-        newProgramToCompany.set(obj.id, companyId);
-      }
-      if (sessionIds.length > 0) {
-        newProgramToSessions.set(obj.id, sessionIds);
+    // Log program type distribution
+    const programTypeCounts = new Map<string, number>();
+    for (const program of newPrograms.values()) {
+      const pType = String(program.properties.program_type || 'null');
+      programTypeCounts.set(pType, (programTypeCounts.get(pType) || 0) + 1);
+    }
+    console.log('Program type distribution:', Object.fromEntries(programTypeCounts));
+
+    // Fetch associations - this is the slow part due to rate limits
+    const programIds = programs.map(p => p.id);
+    console.log(`Fetching associations for ${programIds.length} programs...`);
+
+    // Fetch program -> company associations
+    console.log('Fetching program-company associations...');
+    const programToCompanyAssoc = await fetchAssociations(
+      accessToken, PROGRAM_OBJECT_TYPE, 'companies', programIds
+    );
+    console.log(`Fetched ${programToCompanyAssoc.size} program-company associations`);
+
+    // Fetch program -> session associations
+    console.log('Fetching program-session associations...');
+    const programToSessionAssoc = await fetchAssociations(
+      accessToken, PROGRAM_OBJECT_TYPE, SESSION_OBJECT_TYPE, programIds
+    );
+    console.log(`Fetched ${programToSessionAssoc.size} program-session associations`);
+
+    // Apply associations
+    for (const [programId, companyIds] of programToCompanyAssoc.entries()) {
+      if (companyIds.length > 0) {
+        newProgramToCompany.set(programId, companyIds[0]);
+        // Update program with companyId
+        const program = newPrograms.get(programId);
+        if (program) {
+          program.companyId = companyIds[0];
+        }
       }
     }
+
+    for (const [programId, sessionIds] of programToSessionAssoc.entries()) {
+      if (sessionIds.length > 0) {
+        newProgramToSessions.set(programId, sessionIds);
+      }
+    }
+
+    // Count how many sessions are linked
+    const totalLinkedSessions = Array.from(newProgramToSessions.values())
+      .reduce((acc, ids) => acc + ids.length, 0);
+
+    console.log(`Association summary:`);
+    console.log(`  - Programs with company: ${newProgramToCompany.size}`);
+    console.log(`  - Programs with sessions: ${newProgramToSessions.size}`);
+    console.log(`  - Total session links: ${totalLinkedSessions}`);
 
     // Update cache atomically
     cache = {
@@ -306,6 +355,7 @@ export async function refreshCache(accessToken: string): Promise<void> {
     };
 
     console.log('Cache refresh complete');
+    console.log(`Final cache stats: ${newPrograms.size} programs, ${newSessions.size} sessions, ${newProgramToSessions.size} programs with linked sessions`);
   } catch (error) {
     console.error('Cache refresh failed:', error);
     cache.refreshInProgress = false;
