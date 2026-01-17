@@ -14,21 +14,21 @@
     },
     "program": {
       "objectType": "program",
-      "hubspotObjectType": "2-36322957",
+      "hubspotObjectType": "2-50911446",
       "displayName": "Program",
       "pluralDisplayName": "Programs",
       "primaryDisplayProperty": "program_name",
       "searchableFields": ["program_name", "description"],
-      "linkTemplate": "https://app.hubspot.com/contacts/{portalId}/record/2-36322957/{objectId}"
+      "linkTemplate": "https://app.hubspot.com/contacts/{portalId}/record/2-50911446/{objectId}"
     },
     "session": {
       "objectType": "session",
-      "hubspotObjectType": "2-36322960",
+      "hubspotObjectType": "2-50911450",
       "displayName": "Session",
       "pluralDisplayName": "Sessions",
       "primaryDisplayProperty": "session_name",
       "searchableFields": ["session_name", "itinerary", "notes__c"],
-      "linkTemplate": "https://app.hubspot.com/contacts/{portalId}/record/2-36322960/{objectId}"
+      "linkTemplate": "https://app.hubspot.com/contacts/{portalId}/record/2-50911450/{objectId}"
     }
   },
   "associations": {

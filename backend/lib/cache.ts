@@ -27,8 +27,8 @@ const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 // HubSpot API configuration
 const HUBSPOT_API_BASE = 'https://api.hubapi.com';
-const PROGRAM_OBJECT_TYPE = '2-36322957';
-const SESSION_OBJECT_TYPE = '2-36322960';
+const PROGRAM_OBJECT_TYPE = '2-50911446';
+const SESSION_OBJECT_TYPE = '2-50911450';
 
 // Get access token from environment
 export function getAccessToken(): string {
