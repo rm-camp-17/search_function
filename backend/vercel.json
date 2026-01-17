@@ -7,6 +7,14 @@
       "use": "@vercel/node"
     }
   ],
+  "functions": {
+    "api/search.ts": {
+      "maxDuration": 60
+    },
+    "api/cache.ts": {
+      "maxDuration": 60
+    }
+  },
   "routes": [
     {
       "src": "/api/search",
