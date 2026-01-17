@@ -261,26 +261,19 @@ export async function refreshCache(accessToken: string): Promise<void> {
       });
     }
 
-    // Process sessions
-    for (const obj of sessions) {
-      newSessions.set(obj.id, {
-        id: obj.id,
-        properties: parseSessionProperties(obj.properties),
-        createdAt: obj.createdAt,
-        updatedAt: obj.updatedAt,
-      });
-    }
+    // Process programs first to build lookup maps
+    const programIdToHubspotId = new Map<string, string>(); // program_id -> hubspot id
+    const programExternalIdToHubspotId = new Map<string, string>(); // provider_id_external_ -> hubspot id
 
-    // Process programs with associations
     for (const obj of programs) {
       const companyIds = programToCompanyAssoc.get(obj.id);
-      const sessionIds = programToSessionAssoc.get(obj.id) || [];
+      const companyId = companyIds?.[0];
 
-      const companyId = companyIds?.[0]; // Take first associated company
+      const parsedProps = parseProgramProperties(obj.properties);
 
       newPrograms.set(obj.id, {
         id: obj.id,
-        properties: parseProgramProperties(obj.properties),
+        properties: parsedProps,
         createdAt: obj.createdAt,
         updatedAt: obj.updatedAt,
         companyId,
@@ -289,10 +282,77 @@ export async function refreshCache(accessToken: string): Promise<void> {
       if (companyId) {
         newProgramToCompany.set(obj.id, companyId);
       }
-      if (sessionIds.length > 0) {
-        newProgramToSessions.set(obj.id, sessionIds);
+
+      // Build lookup maps for session linking
+      const programId = parsedProps.program_id;
+      const externalId = parsedProps.provider_id_external_;
+      if (programId && typeof programId === 'string') {
+        programIdToHubspotId.set(programId, obj.id);
+      }
+      if (externalId && typeof externalId === 'string') {
+        programExternalIdToHubspotId.set(externalId, obj.id);
       }
     }
+
+    // Process sessions and build program-to-session mapping from BOTH:
+    // 1. HubSpot associations (if available)
+    // 2. Session properties (program_id__external_ matching program's program_id or provider_id_external_)
+
+    // Start with associations if we have them
+    for (const [programId, sessionIds] of programToSessionAssoc.entries()) {
+      newProgramToSessions.set(programId, [...sessionIds]);
+    }
+
+    // Now also build from session properties as fallback/supplement
+    let sessionsLinkedByProperty = 0;
+    let sessionsLinkedByAssociation = programToSessionAssoc.size > 0 ?
+      Array.from(programToSessionAssoc.values()).reduce((acc, ids) => acc + ids.length, 0) : 0;
+
+    for (const obj of sessions) {
+      const parsedProps = parseSessionProperties(obj.properties);
+
+      newSessions.set(obj.id, {
+        id: obj.id,
+        properties: parsedProps,
+        createdAt: obj.createdAt,
+        updatedAt: obj.updatedAt,
+      });
+
+      // Try to link session to program via properties
+      const sessionProgramId = parsedProps.program_id__external_;
+      if (sessionProgramId && typeof sessionProgramId === 'string') {
+        // Try matching against program_id
+        let hubspotProgramId = programIdToHubspotId.get(sessionProgramId);
+
+        // If not found, try matching against provider_id_external_
+        if (!hubspotProgramId) {
+          hubspotProgramId = programExternalIdToHubspotId.get(sessionProgramId);
+        }
+
+        if (hubspotProgramId) {
+          const existingSessions = newProgramToSessions.get(hubspotProgramId) || [];
+          if (!existingSessions.includes(obj.id)) {
+            existingSessions.push(obj.id);
+            newProgramToSessions.set(hubspotProgramId, existingSessions);
+            sessionsLinkedByProperty++;
+          }
+        }
+      }
+    }
+
+    console.log(`Session linking summary:`);
+    console.log(`  - Sessions linked by HubSpot associations: ${sessionsLinkedByAssociation}`);
+    console.log(`  - Additional sessions linked by property matching: ${sessionsLinkedByProperty}`);
+    console.log(`  - Programs with sessions: ${newProgramToSessions.size}`);
+    console.log(`  - Total sessions in cache: ${newSessions.size}`);
+
+    // Log program type distribution for debugging
+    const programTypeCounts = new Map<string, number>();
+    for (const program of newPrograms.values()) {
+      const pType = String(program.properties.program_type || 'null');
+      programTypeCounts.set(pType, (programTypeCounts.get(pType) || 0) + 1);
+    }
+    console.log('Program type distribution:', Object.fromEntries(programTypeCounts));
 
     // Update cache atomically
     cache = {
@@ -306,6 +366,7 @@ export async function refreshCache(accessToken: string): Promise<void> {
     };
 
     console.log('Cache refresh complete');
+    console.log(`Final cache stats: ${newPrograms.size} programs, ${newSessions.size} sessions, ${newProgramToSessions.size} programs with sessions`);
   } catch (error) {
     console.error('Cache refresh failed:', error);
     cache.refreshInProgress = false;
