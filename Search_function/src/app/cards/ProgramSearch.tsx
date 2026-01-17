@@ -512,7 +512,9 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
         programType: programTypeFilter,
         page,
         pageSize: 20,
-        includeEmptyResults: tabConfig.isCompanyTab, // Show all for company tab
+        // Always include results even if no sessions match filters
+        // This ensures we show programs and let users see what's available
+        includeEmptyResults: true,
       };
 
       const response = await hubspot.fetch(`${API_BASE_URL}/api/search`, {
@@ -536,11 +538,22 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     }
   }, [schema, searchQuery, activeFilters, selectedCompanies, tabConfig, selectedProgramType]);
 
+  // Auto-trigger search when:
+  // 1. Tab with programTypes is selected (overnight, specialty, teen) - load all by default
+  // 2. Company is selected on company tab
+  // 3. Program type is selected on dropdown tab (other)
+  // 4. Any filter is applied
   useEffect(() => {
-    if (schema && (selectedCompanies.length > 0 || activeFilters.length > 0 || selectedProgramType)) {
+    if (!schema) return;
+
+    // For tabs with predefined program types, auto-search on load
+    const hasPrefilledProgramTypes = tabConfig.programTypes.length > 0 && !tabConfig.isDropdownMode;
+
+    // Trigger search if any condition is met
+    if (hasPrefilledProgramTypes || selectedCompanies.length > 0 || activeFilters.length > 0 || selectedProgramType) {
       executeSearch(1);
     }
-  }, [selectedCompanies, activeFilters, schema, selectedProgramType]);
+  }, [selectedCompanies, activeFilters, schema, selectedProgramType, activeTab]);
 
   const handleSearch = () => {
     executeSearch(1);
