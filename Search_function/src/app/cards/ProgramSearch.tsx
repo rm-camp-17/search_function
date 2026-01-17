@@ -355,7 +355,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     try {
       const response = await hubspot.fetch(`${API_BASE_URL}/api/search`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           page: 1,
           pageSize: 20,
@@ -433,7 +432,6 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
 
       const response = await hubspot.fetch(`${API_BASE_URL}/api/search`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody) as unknown as Record<string, unknown>,
       });
 
