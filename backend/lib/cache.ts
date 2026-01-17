@@ -100,7 +100,7 @@ async function fetchHubSpotObjects(
       throw new Error(`HubSpot API error (${response.status}): ${error}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as { results?: HubSpotObject[]; paging?: { next?: { after: string } } };
     allObjects.push(...(data.results || []));
     after = data.paging?.next?.after;
   } while (after);
@@ -159,10 +159,10 @@ async function fetchAssociations(
         break;
       }
 
-      const data = await response.json();
+      const data = await response.json() as { results?: Array<{ from?: { id: string }; to?: Array<{ toObjectId: string }> }> };
       for (const result of data.results || []) {
         const fromId = result.from?.id;
-        const toIds = (result.to || []).map((t: { toObjectId: string }) => t.toObjectId);
+        const toIds = (result.to || []).map((t) => t.toObjectId);
         if (fromId && toIds.length > 0) {
           associations.set(fromId, toIds);
         }
