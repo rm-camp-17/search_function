@@ -727,8 +727,10 @@ function formatFilterDisplayValue(
       return `≥ ${label}`;
     case 'lte':
       return `≤ ${label}`;
-    case 'between':
-      return `${(value as [number, number])[0]} - ${(value as [number, number])[1]}`;
+    case 'between': {
+      const range = value as unknown as [number, number];
+      return `${range[0]} - ${range[1]}`;
+    }
     case 'contains':
       return `contains "${label}"`;
     default:
