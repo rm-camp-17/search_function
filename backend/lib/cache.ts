@@ -131,6 +131,7 @@ async function fetchAssociations(
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         inputs: batch.map(id => ({ id })),
