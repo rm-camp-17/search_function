@@ -1,12 +1,12 @@
 // ============================================================================
 // Camp Experts Program + Session Search
 // HubSpot UI Extension - Multi-Tab Referral Builder
-// 5 Focused Search Modes:
-//   1. General (Company/Program/Sessions) - Traditional filter with all options
-//   2. Overnight Camp - Region, Gender Structure, Brother-Sister filters
+// 5 Discrete Search Modes:
+//   1. Company Programs - Quick search + Partner dropdown (browse by company)
+//   2. Overnight Camp - Region, Gender Structure, Brother-Sister, flexible dates
 //   3. Specialty Camp - Camp Type with conditional Sports/Arts/Education options
 //   4. Teen Trips / Gap Year - Destination-focused search
-//   5. Other Programs - Family camps and remaining program types
+//   5. Other Programs - Simple dropdown menu (Family, Day, Specialty)
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -151,10 +151,10 @@ interface FilterGroup {
 }
 
 // ----------------------------------------------------------------------------
-// Tab Configuration - 5 Focused Search Modes
+// Tab Configuration - 5 Discrete Search Modes
 // ----------------------------------------------------------------------------
 
-type SearchTabId = 'general' | 'overnight' | 'specialty' | 'teen' | 'other';
+type SearchTabId = 'company' | 'overnight' | 'specialty' | 'teen' | 'other';
 
 interface SearchTabConfig {
   id: SearchTabId;
@@ -163,9 +163,13 @@ interface SearchTabConfig {
   description: string;
   programTypes: string[];
   filterCategories: FilterCategoryConfig[];
-  showCompanySearch?: boolean;
-  showProgramSearch?: boolean;
-  showSessionSearch?: boolean;
+  // Company tab specific
+  isCompanyTab?: boolean;
+  showQuickSearch?: boolean;
+  showPartnerDropdown?: boolean;
+  // Other tab specific - simple dropdown mode
+  isDropdownMode?: boolean;
+  dropdownOptions?: Array<{ value: string; label: string }>;
 }
 
 interface FilterCategoryConfig {
@@ -176,31 +180,34 @@ interface FilterCategoryConfig {
     field: string;
     values: string[];
   };
+  // Custom field labels for this category
+  fieldLabels?: Record<string, string>;
 }
 
-// General Search - Company / Program / Sessions traditional filter view
-const GENERAL_FILTERS: FilterCategoryConfig[] = [
-  { title: 'Company/Partner', fields: ['name'], defaultOpen: true },
-  { title: 'Program Type', fields: ['program_type'], defaultOpen: true },
-  { title: 'Location & Region', fields: ['region', 'locations'], defaultOpen: true },
-  { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: true },
-  { title: 'Age & Grade', fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'], defaultOpen: true },
-  { title: 'Tuition & Cost', fields: ['tuition__current_'], defaultOpen: false },
-];
+// Company/Partner Tab - Quick search and partner dropdown only
+const COMPANY_FILTERS: FilterCategoryConfig[] = [];
 
-// Overnight Camps - Region, Gender Structure, Is Brother-Sister
+// Overnight Camps - Region, Gender Structure, Is Brother-Sister, flexible date range
 const OVERNIGHT_FILTERS: FilterCategoryConfig[] = [
   { title: 'Location & Region', fields: ['region'], defaultOpen: true },
   { title: 'Camp Structure', fields: ['gender_structure', 'is_brother_sister'], defaultOpen: true },
-  { title: 'Age & Grade', fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'], defaultOpen: true },
-  { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: false },
+  { title: 'Age & Grade', fields: ['age__min_', 'age__max_'], defaultOpen: true },
+  {
+    title: 'Dates & Duration',
+    fields: ['start_date', 'end_date', 'weeks'],
+    defaultOpen: true,
+    fieldLabels: {
+      'start_date': 'Starts no earlier than',
+      'end_date': 'Ends no later than',
+      'weeks': 'Duration (weeks)'
+    }
+  },
   { title: 'Tuition & Cost', fields: ['tuition__current_'], defaultOpen: false },
 ];
 
-// Specialty Camps - Primary Camp Type, Specialty Subtype, conditional activity options
+// Specialty Camps - Primary Camp Type, conditional activity options (NO region)
 const SPECIALTY_FILTERS: FilterCategoryConfig[] = [
   { title: 'Camp Type', fields: ['primary_camp_type'], defaultOpen: true },
-  { title: 'Specialty Subtype', fields: ['specialty_subtype'], defaultOpen: true },
   {
     title: 'Sport Options',
     fields: ['sport_options'],
@@ -219,50 +226,73 @@ const SPECIALTY_FILTERS: FilterCategoryConfig[] = [
     defaultOpen: true,
     conditionalOn: { field: 'primary_camp_type', values: ['academic', 'education'] }
   },
-  { title: 'Location & Region', fields: ['region'], defaultOpen: false },
-  { title: 'Age & Grade', fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'], defaultOpen: false },
-  { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: false },
+  { title: 'Age & Grade', fields: ['age__min_', 'age__max_'], defaultOpen: true },
+  {
+    title: 'Dates & Duration',
+    fields: ['start_date', 'end_date', 'weeks'],
+    defaultOpen: false,
+    fieldLabels: {
+      'start_date': 'Starts no earlier than',
+      'end_date': 'Ends no later than',
+      'weeks': 'Duration (weeks)'
+    }
+  },
   { title: 'Tuition & Cost', fields: ['tuition__current_'], defaultOpen: false },
 ];
 
-// Teen Trips & Gap Year - Destination focused
+// Teen Trips & Gap Year - Destination focused (renamed from locations)
 const TEEN_FILTERS: FilterCategoryConfig[] = [
-  { title: 'Destination', fields: ['region', 'locations'], defaultOpen: true },
-  { title: 'Experience Type', fields: ['experience_subtype'], defaultOpen: true },
-  { title: 'Age & Grade', fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'], defaultOpen: true },
-  { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: false },
+  {
+    title: 'Destinations',
+    fields: ['locations'],
+    defaultOpen: true,
+    fieldLabels: {
+      'locations': 'Destinations'
+    }
+  },
+  { title: 'Age & Grade', fields: ['age__min_', 'age__max_'], defaultOpen: true },
+  {
+    title: 'Dates & Duration',
+    fields: ['start_date', 'end_date', 'weeks'],
+    defaultOpen: true,
+    fieldLabels: {
+      'start_date': 'Starts no earlier than',
+      'end_date': 'Ends no later than',
+      'weeks': 'Duration (weeks)'
+    }
+  },
   { title: 'Tuition & Cost', fields: ['tuition__current_'], defaultOpen: false },
   { title: 'Accommodations', fields: ['accommodations'], defaultOpen: false },
 ];
 
-// Other - Remaining program types (family camp, etc.)
-const OTHER_FILTERS: FilterCategoryConfig[] = [
-  { title: 'Program Type', fields: ['program_type'], defaultOpen: true },
-  { title: 'Location & Region', fields: ['region', 'locations'], defaultOpen: true },
-  { title: 'Program Characteristics', fields: ['primary_camp_type', 'camp_subtype', 'gender_structure'], defaultOpen: false },
-  { title: 'Age & Grade', fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'], defaultOpen: false },
-  { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: false },
-  { title: 'Tuition & Cost', fields: ['tuition__current_'], defaultOpen: false },
+// Other Programs - Simple dropdown to select type
+const OTHER_FILTERS: FilterCategoryConfig[] = [];
+
+// Dropdown options for "Other Programs" tab
+const OTHER_PROGRAM_OPTIONS = [
+  { value: 'family_camp', label: 'Family Camp' },
+  { value: 'day_camp', label: 'Day Camp' },
+  { value: 'specialty_program', label: 'Specialty Program' },
 ];
 
 const SEARCH_TABS: SearchTabConfig[] = [
   {
-    id: 'general',
-    label: 'Company/Program/Sessions',
-    shortLabel: 'General',
-    description: 'Search by company, program, or session with all filter options available.',
+    id: 'company',
+    label: 'Company Programs',
+    shortLabel: 'Company',
+    description: 'Browse programs by partner company. Select a partner to see all their programs and sessions.',
     programTypes: [],
-    filterCategories: GENERAL_FILTERS,
-    showCompanySearch: true,
-    showProgramSearch: true,
-    showSessionSearch: true,
+    filterCategories: COMPANY_FILTERS,
+    isCompanyTab: true,
+    showQuickSearch: true,
+    showPartnerDropdown: true,
   },
   {
     id: 'overnight',
     label: 'Overnight Camp',
     shortLabel: 'Overnight',
     description: 'Traditional sleepaway camps. Filter by region, gender structure, and brother-sister options.',
-    programTypes: ['overnight_camp', 'day_camp'],
+    programTypes: ['overnight_camp'],
     filterCategories: OVERNIGHT_FILTERS,
   },
   {
@@ -285,9 +315,11 @@ const SEARCH_TABS: SearchTabConfig[] = [
     id: 'other',
     label: 'Other Programs',
     shortLabel: 'Other',
-    description: 'Family camps and other specialized offerings not covered by the other categories.',
-    programTypes: ['family_camp'],
+    description: 'Family camps, day camps, and other specialized offerings.',
+    programTypes: [],
     filterCategories: OTHER_FILTERS,
+    isDropdownMode: true,
+    dropdownOptions: OTHER_PROGRAM_OPTIONS,
   },
 ];
 
@@ -328,7 +360,8 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
   const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [companyOptions, setCompanyOptions] = useState<PropertyOption[]>([]);
-  const [activeTab, setActiveTab] = useState<SearchTabId>('general');
+  const [activeTab, setActiveTab] = useState<SearchTabId>('company');
+  const [selectedProgramType, setSelectedProgramType] = useState<string>('');
 
   // UI state
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
@@ -358,6 +391,7 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     setSearchResults(null);
     setError(null);
     setExpandedPrograms(new Set());
+    setSelectedProgramType('');
   }, [activeTab]);
 
   const loadSchema = async (programType?: string) => {
@@ -457,7 +491,11 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
       };
 
       let programTypeFilter: string | undefined = undefined;
-      if (tabConfig.programTypes.length === 1) {
+
+      // Handle dropdown mode (Other Programs tab)
+      if (tabConfig.isDropdownMode && selectedProgramType) {
+        programTypeFilter = selectedProgramType;
+      } else if (tabConfig.programTypes.length === 1) {
         programTypeFilter = tabConfig.programTypes[0];
       } else if (tabConfig.programTypes.length > 1) {
         allFilters.push({
@@ -474,7 +512,7 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
         programType: programTypeFilter,
         page,
         pageSize: 20,
-        includeEmptyResults: false,
+        includeEmptyResults: tabConfig.isCompanyTab, // Show all for company tab
       };
 
       const response = await hubspot.fetch(`${API_BASE_URL}/api/search`, {
@@ -496,13 +534,13 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
     } finally {
       setSearching(false);
     }
-  }, [schema, searchQuery, activeFilters, selectedCompanies, tabConfig]);
+  }, [schema, searchQuery, activeFilters, selectedCompanies, tabConfig, selectedProgramType]);
 
   useEffect(() => {
-    if (schema && (selectedCompanies.length > 0 || activeFilters.length > 0)) {
+    if (schema && (selectedCompanies.length > 0 || activeFilters.length > 0 || selectedProgramType)) {
       executeSearch(1);
     }
-  }, [selectedCompanies, activeFilters, schema]);
+  }, [selectedCompanies, activeFilters, schema, selectedProgramType]);
 
   const handleSearch = () => {
     executeSearch(1);
@@ -613,11 +651,13 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
         activeFilters={activeFilters}
         searchResults={searchResults}
         searching={searching}
+        selectedProgramType={selectedProgramType}
         onSearchQueryChange={setSearchQuery}
         onSearchSubmit={handleSearch}
         onCompaniesChange={setSelectedCompanies}
         onAddFilter={addFilter}
         onRemoveFilter={removeFilter}
+        onProgramTypeChange={setSelectedProgramType}
       />
 
       {/* Applied Filters Summary */}
@@ -704,7 +744,11 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
             {tabConfig.description}
           </Text>
           <Text format={{ italic: true }}>
-            Select a partner or set filters above to begin your search.
+            {tabConfig.isCompanyTab
+              ? 'Select a partner from the dropdown or use quick search to begin.'
+              : tabConfig.isDropdownMode
+                ? 'Select a program type from the dropdown to see available programs.'
+                : 'Set filters above to begin your search.'}
           </Text>
         </EmptyState>
       )}
@@ -725,11 +769,13 @@ interface TabContentProps {
   activeFilters: Filter[];
   searchResults: SearchResponse | null;
   searching: boolean;
+  selectedProgramType: string;
   onSearchQueryChange: (value: string) => void;
   onSearchSubmit: () => void;
   onCompaniesChange: (companies: string[]) => void;
   onAddFilter: (field: string, value: string | number | boolean | string[] | number[], operator?: string, objectType?: 'program' | 'session' | 'company') => void;
   onRemoveFilter: (field: string) => void;
+  onProgramTypeChange: (programType: string) => void;
 }
 
 const TabContent: React.FC<TabContentProps> = ({
@@ -741,14 +787,17 @@ const TabContent: React.FC<TabContentProps> = ({
   activeFilters,
   searchResults,
   searching,
+  selectedProgramType,
   onSearchQueryChange,
   onSearchSubmit,
   onCompaniesChange,
   onAddFilter,
   onRemoveFilter,
+  onProgramTypeChange,
 }) => {
-  const isGeneralTab = tabConfig.id === 'general';
+  const isCompanyTab = tabConfig.isCompanyTab;
   const isSpecialtyTab = tabConfig.id === 'specialty';
+  const isDropdownMode = tabConfig.isDropdownMode;
 
   return (
     <Flex direction="column" gap="md">
@@ -758,97 +807,127 @@ const TabContent: React.FC<TabContentProps> = ({
         <Text>{tabConfig.description}</Text>
       </Flex>
 
-      {/* Quick Search Bar */}
-      <Tile>
-        <Flex direction="column" gap="sm">
-          <Text format={{ fontWeight: 'bold' }}>
-            {isGeneralTab ? 'Search Everything' : 'Quick Search'}
-          </Text>
-          <Flex direction="row" gap="sm" align="end">
-            <Box>
-              <Input
-                name="searchQuery"
-                label={isGeneralTab
-                  ? "Search by company name, program name, or session details..."
-                  : "Search programs, sessions, partners..."}
-                placeholder="Type to search..."
-                value={searchQuery}
-                onChange={onSearchQueryChange}
-              />
-            </Box>
-            <Button onClick={onSearchSubmit} disabled={searching}>
-              {searching ? 'Searching...' : 'Search'}
-            </Button>
-          </Flex>
-        </Flex>
-      </Tile>
-
-      {/* Partner Selection - Enhanced for General tab */}
-      <Tile>
-        <Flex direction="column" gap="sm">
-          <Flex direction="row" align="center" gap="xs">
-            <Text format={{ fontWeight: 'bold' }}>
-              {isGeneralTab ? 'Filter by Partner Company' : 'Select Partners'}
-            </Text>
-            {selectedCompanies.length > 0 && (
-              <Tag variant="success">{selectedCompanies.length} selected</Tag>
-            )}
-          </Flex>
-          <MultiSelect
-            name="companySelect"
-            label="Camp Partners"
-            placeholder="Select one or more camp partners..."
-            value={selectedCompanies}
-            options={companyOptions.map(c => ({ value: c.value, label: c.label }))}
-            onChange={(values) => onCompaniesChange(values as string[])}
-          />
-          {selectedCompanies.length > 0 && (
-            <Flex direction="row" gap="xs" wrap="wrap">
-              {selectedCompanies.slice(0, 5).map(companyName => (
-                <Tag key={companyName} variant="success">{companyName}</Tag>
-              ))}
-              {selectedCompanies.length > 5 && (
-                <Tag variant="default">+{selectedCompanies.length - 5} more</Tag>
-              )}
-            </Flex>
+      {/* Company Tab - Quick Search and Partner Dropdown Only */}
+      {isCompanyTab && (
+        <>
+          {/* Quick Search Bar - Only for Company Tab */}
+          {tabConfig.showQuickSearch && (
+            <Tile>
+              <Flex direction="column" gap="sm">
+                <Text format={{ fontWeight: 'bold' }}>Quick Search</Text>
+                <Flex direction="row" gap="sm" align="end">
+                  <Box>
+                    <Input
+                      name="searchQuery"
+                      label="Search by company name, program name, or session..."
+                      placeholder="Type to search..."
+                      value={searchQuery}
+                      onChange={onSearchQueryChange}
+                    />
+                  </Box>
+                  <Button onClick={onSearchSubmit} disabled={searching}>
+                    {searching ? 'Searching...' : 'Search'}
+                  </Button>
+                </Flex>
+              </Flex>
+            </Tile>
           )}
-        </Flex>
-      </Tile>
 
-      {/* Filter Sections */}
-      {schema && (
+          {/* Partner Selection Dropdown - Only for Company Tab */}
+          {tabConfig.showPartnerDropdown && (
+            <Tile>
+              <Flex direction="column" gap="sm">
+                <Text format={{ fontWeight: 'bold' }}>Select Partner</Text>
+                <Select
+                  name="companySelect"
+                  label="Camp Partner"
+                  placeholder="Select a camp partner..."
+                  value={selectedCompanies[0] || ''}
+                  options={[
+                    { value: '', label: 'Select a partner...' },
+                    ...companyOptions.map(c => ({ value: c.value, label: c.label }))
+                  ]}
+                  onChange={(value) => {
+                    if (value) {
+                      onCompaniesChange([value]);
+                    } else {
+                      onCompaniesChange([]);
+                    }
+                  }}
+                />
+                {selectedCompanies.length > 0 && (
+                  <Text format={{ fontWeight: 'demibold' }}>
+                    Showing all programs for: {selectedCompanies[0]}
+                  </Text>
+                )}
+              </Flex>
+            </Tile>
+          )}
+        </>
+      )}
+
+      {/* Dropdown Mode - Other Programs Tab */}
+      {isDropdownMode && tabConfig.dropdownOptions && (
         <Tile>
           <Flex direction="column" gap="sm">
-            <Flex direction="row" align="center" gap="xs">
-              <Text format={{ fontWeight: 'bold' }}>
-                {isGeneralTab ? 'All Filter Options' : 'Refine Your Search'}
+            <Text format={{ fontWeight: 'bold' }}>Select Program Type</Text>
+            <Select
+              name="programTypeSelect"
+              label="Program Type"
+              placeholder="Select a program type..."
+              value={selectedProgramType}
+              options={[
+                { value: '', label: 'Select a program type...' },
+                ...tabConfig.dropdownOptions.map(o => ({ value: o.value, label: o.label }))
+              ]}
+              onChange={(value) => onProgramTypeChange(value)}
+            />
+            {selectedProgramType && (
+              <Text format={{ fontWeight: 'demibold' }}>
+                Showing all {tabConfig.dropdownOptions.find(o => o.value === selectedProgramType)?.label || selectedProgramType} programs
               </Text>
-              {activeFilters.length > 0 && (
-                <Tag variant="warning">{activeFilters.length} active</Tag>
-              )}
-            </Flex>
-
-            {/* Specialty tab hint */}
-            {isSpecialtyTab && !activeFilters.find(f => f.field === 'primary_camp_type') && (
-              <Alert title="Select a Camp Type" variant="info">
-                Choose a primary camp type (Sports, Arts, or Education) to see specific activity options.
-              </Alert>
             )}
-
-            {tabConfig.filterCategories.map((category, idx) => (
-              <FilterCategory
-                key={`${category.title}-${idx}`}
-                category={category}
-                schema={schema}
-                activeFilters={activeFilters}
-                facets={searchResults?.facets}
-                onAddFilter={onAddFilter}
-                onRemoveFilter={onRemoveFilter}
-                tabProgramTypes={tabConfig.programTypes}
-              />
-            ))}
           </Flex>
         </Tile>
+      )}
+
+      {/* Traditional Filter Tabs (Overnight, Specialty, Teen) */}
+      {!isCompanyTab && !isDropdownMode && (
+        <>
+          {/* Filter Sections */}
+          {schema && tabConfig.filterCategories.length > 0 && (
+            <Tile>
+              <Flex direction="column" gap="sm">
+                <Flex direction="row" align="center" gap="xs">
+                  <Text format={{ fontWeight: 'bold' }}>Filter Options</Text>
+                  {activeFilters.length > 0 && (
+                    <Tag variant="warning">{activeFilters.length} active</Tag>
+                  )}
+                </Flex>
+
+                {/* Specialty tab hint */}
+                {isSpecialtyTab && !activeFilters.find(f => f.field === 'primary_camp_type') && (
+                  <Alert title="Select a Camp Type" variant="info">
+                    Choose a primary camp type (Sports, Arts, or Education) to see specific activity options.
+                  </Alert>
+                )}
+
+                {tabConfig.filterCategories.map((category, idx) => (
+                  <FilterCategory
+                    key={`${category.title}-${idx}`}
+                    category={category}
+                    schema={schema}
+                    activeFilters={activeFilters}
+                    facets={searchResults?.facets}
+                    onAddFilter={onAddFilter}
+                    onRemoveFilter={onRemoveFilter}
+                    tabProgramTypes={tabConfig.programTypes}
+                  />
+                ))}
+              </Flex>
+            </Tile>
+          )}
+        </>
       )}
     </Flex>
   );
@@ -927,16 +1006,24 @@ const FilterCategory: React.FC<FilterCategoryProps> = ({
   return (
     <Accordion title={titleWithCount} defaultOpen={category.defaultOpen}>
       <Flex direction="row" gap="sm" wrap="wrap">
-        {categoryFields.map(field => (
-          <FilterControl
-            key={field.field}
-            field={field}
-            activeFilters={activeFilters}
-            facets={facets}
-            onAddFilter={onAddFilter}
-            onRemoveFilter={onRemoveFilter}
-          />
-        ))}
+        {categoryFields.map(field => {
+          // Apply custom label if specified in category config
+          const customLabel = category.fieldLabels?.[field.field];
+          const fieldWithCustomLabel = customLabel
+            ? { ...field, label: customLabel }
+            : field;
+
+          return (
+            <FilterControl
+              key={field.field}
+              field={fieldWithCustomLabel}
+              activeFilters={activeFilters}
+              facets={facets}
+              onAddFilter={onAddFilter}
+              onRemoveFilter={onRemoveFilter}
+            />
+          );
+        })}
       </Flex>
     </Accordion>
   );
