@@ -16,17 +16,58 @@ import { loadSchemas } from '../lib/schema.js';
 
 // Ensure schemas are loaded
 let schemasLoaded = false;
+let refreshPromise: Promise<void> | null = null;
 
-async function ensureInitialized(): Promise<void> {
+async function ensureInitialized(): Promise<{ ready: boolean; message?: string }> {
   if (!schemasLoaded) {
     loadSchemas();
     schemasLoaded = true;
   }
 
-  if (isCacheEmpty() || isCacheStale()) {
+  const cacheEmpty = isCacheEmpty();
+  const cacheStale = isCacheStale();
+
+  // If cache has data (even if stale), use it and refresh in background
+  if (!cacheEmpty && cacheStale && !refreshPromise) {
+    console.log('Cache stale but has data - refreshing in background');
     const accessToken = getAccessToken();
-    await refreshCache(accessToken);
+    refreshPromise = refreshCache(accessToken).finally(() => {
+      refreshPromise = null;
+    });
+    return { ready: true };
   }
+
+  // If cache is empty, we need to wait for initial load
+  if (cacheEmpty) {
+    if (!refreshPromise) {
+      console.log('Cache empty - starting initial load');
+      const accessToken = getAccessToken();
+      refreshPromise = refreshCache(accessToken).finally(() => {
+        refreshPromise = null;
+      });
+    }
+    // Wait for refresh with a timeout
+    try {
+      await Promise.race([
+        refreshPromise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Cache initialization timeout')), 12000)
+        ),
+      ]);
+      return { ready: true };
+    } catch (error) {
+      // If still empty after timeout, return not ready
+      if (isCacheEmpty()) {
+        return {
+          ready: false,
+          message: 'Cache is still loading. Please try again in a few seconds.'
+        };
+      }
+      return { ready: true };
+    }
+  }
+
+  return { ready: true };
 }
 
 export default async function handler(
@@ -66,7 +107,24 @@ export default async function handler(
   try {
     // Initialize cache if needed (uses HUBSPOT_ACCESS_TOKEN env var)
     console.log(`[${requestId}] Starting search request`);
-    await ensureInitialized();
+    const initResult = await ensureInitialized();
+
+    if (!initResult.ready) {
+      const response: ApiResponse<null> = {
+        success: false,
+        error: {
+          code: 'CACHE_LOADING',
+          message: initResult.message || 'Cache is loading. Please try again.',
+        },
+        meta: {
+          requestId,
+          timestamp: new Date().toISOString(),
+          processingTimeMs: Date.now() - startTime,
+        },
+      };
+      res.status(503).json(response);
+      return;
+    }
 
     // Parse and validate request body
     const searchRequest = req.body as SearchRequest;
