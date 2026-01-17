@@ -220,28 +220,77 @@ async function fetchAssociations(
 // Phase 2: Load associations (slow, ~30-60s) - runs in background
 // ----------------------------------------------------------------------------
 
+// Company properties - using EXACT HubSpot internal names
 const companyProperties = [
-  'name', 'short_program_name', 'domain', 'email', 'phone', 'phone_2',
-  'country_hq', 'us_state', 'four_sentence_summary_for_parents',
-  'highlights_and_any_concerns_expressed', 'programming', 'religious_structure',
-  'vibe', 'territory', 'commission_rate', 'commission_type', 'commission_basis',
-  'commission_structure___summary', 'companyid', 'provider_ext_id_salesforce',
-  'website_for_recommendation_entry', 'tfs_weeks', 'session_weeks', 'lifecyclestage',
+  'name',
+  'short_program_name',
+  'domain',
+  'email',
+  'phone',
+  'phone_2',
+  'country_hq',
+  'us_state',
+  'four_sentence_summary_for_parents',
+  'highlights_and_any_concerns_expressed',
+  'programming',
+  'religious_structure',
+  'vibe',
+  'territory',
+  'commission_rate',
+  'commission_type',
+  'commission_basis',
+  'commission_structure___summary',
+  'programid',                 // "CompanyId" - note: HubSpot internal name is 'programid'
+  'provider_ext_id_salesforce',
+  'website_for_recommendation_entry',
+  'tfs_weeks',
+  'session_weeks',
+  'lifecyclestage',
 ];
 
+// Program properties - using EXACT HubSpot internal names
 const programProperties = [
-  'program_name', 'program_id', 'program_type', 'description',
-  'primary_camp_type', 'camp_subtype', 'experience_subtype', 'specialty_subtype',
-  'region', 'gender_structure', 'brother_sister', 'is_brother_sister',
-  'programming_philosophy', 'accommodations', 'provider_id_external_',
+  'program_name',
+  'program_id',
+  'recordtype_name',           // "Program Type" - this is the key field for filtering!
+  'description__c',            // "Description"
+  'primary_camp_type__c',      // "Primary Camp Type"
+  'camp_subtype__c',           // "Camp Subtype"
+  'experience_subtype',        // "Experience Subtype"
+  'specialty_subtype',         // "Specialty Subtype"
+  'region__c',                 // "Region"
+  'gender_structure_subtype__c', // "Gender Structure"
+  'brother_sister_conditional_on_gender__c', // "Brother - Sister"
+  'is_brother__sister',        // "Is Brother - Sister?"
+  'programming_philosophy__c', // "Programming Philosophy"
+  'accommodations__c',         // "Accommodations"
+  'provider_id',               // "Provider ID (External)"
 ];
 
+// Session properties - using EXACT HubSpot internal names
 const sessionProperties = [
-  'session_name', 'session_id', 'start_date', 'end_date', 'weeks',
-  'age__min_', 'age__max_', 'grade_range_min', 'grade_range_max',
-  'tuition__current_', 'tuition_currency', 'program_type', 'primary_camp_type',
-  'experience_subtype', 'specialty_subtype', 'locations', 'sport_options',
-  'arts_options', 'education_options', 'itinerary', 'notes__c',
+  'session_name',
+  'session_id',
+  'start_date__c',             // "Start Date"
+  'end_date__c',               // "End Date"
+  'weeks',                     // "Weeks" (calculation)
+  'age_range_min__c',          // "Age (Min)"
+  'age_range_max__c',          // "Age (Max)"
+  'grade_range_min',           // "Grade Range Min"
+  'grade_range_max',           // "Grade Range Max"
+  'tuition_current',           // "Tuition (Current)"
+  'currencyisocode',           // "Tuition Currency"
+  'program_type',              // "Program Type"
+  'primary_camp_type',         // "Primary Camp Type"
+  'experience_subtype',        // "Experience Subtype"
+  'specialty_subtype',         // "Specialty Subtype"
+  'locations_traveled__c',     // "Locations"
+  'sport_options__c',          // "Sport Options"
+  'arts_options__c',           // "Arts Options"
+  'education_options__c',      // "Education Options"
+  'itinerary__c',              // "Itinerary"
+  'notes__c',                  // "Notes__c"
+  'program_id',                // "Program ID (External)" - for linking
 ];
 
 // Phase 1: Load objects only (fast)
@@ -481,19 +530,37 @@ function parseProgramProperties(
 ): Record<string, string | number | boolean | null> {
   const parsed: Record<string, string | number | boolean | null> = {};
 
+  // Map HubSpot property names to our internal names
+  const propertyMapping: Record<string, string> = {
+    'recordtype_name': 'program_type',
+    'description__c': 'description',
+    'primary_camp_type__c': 'primary_camp_type',
+    'camp_subtype__c': 'camp_subtype',
+    'region__c': 'region',
+    'gender_structure_subtype__c': 'gender_structure',
+    'brother_sister_conditional_on_gender__c': 'brother_sister',
+    'is_brother__sister': 'is_brother_sister',
+    'programming_philosophy__c': 'programming_philosophy',
+    'accommodations__c': 'accommodations',
+    'provider_id': 'provider_id_external_',
+  };
+
   for (const [key, value] of Object.entries(props)) {
+    // Use mapped name if available, otherwise use original
+    const mappedKey = propertyMapping[key] || key;
+
     if (value === null || value === '') {
-      parsed[key] = null;
+      parsed[mappedKey] = null;
       continue;
     }
 
     // Handle boolean fields
-    if (['is_brother_sister'].includes(key)) {
-      parsed[key] = value === 'true' || value === 'yes' || value === '1';
+    if (mappedKey === 'is_brother_sister') {
+      parsed[mappedKey] = value === 'true' || value === 'yes' || value === '1';
       continue;
     }
 
-    parsed[key] = value;
+    parsed[mappedKey] = value;
   }
 
   return parsed;
@@ -504,31 +571,49 @@ function parseSessionProperties(
 ): Record<string, string | number | boolean | null> {
   const parsed: Record<string, string | number | boolean | null> = {};
 
+  // Map HubSpot property names to our internal names
+  const propertyMapping: Record<string, string> = {
+    'start_date__c': 'start_date',
+    'end_date__c': 'end_date',
+    'age_range_min__c': 'age__min_',
+    'age_range_max__c': 'age__max_',
+    'tuition_current': 'tuition__current_',
+    'currencyisocode': 'tuition_currency',
+    'locations_traveled__c': 'locations',
+    'sport_options__c': 'sport_options',
+    'arts_options__c': 'arts_options',
+    'education_options__c': 'education_options',
+    'itinerary__c': 'itinerary',
+  };
+
   const numericFields = [
     'weeks', 'age__min_', 'age__max_', 'grade_range_min', 'grade_range_max',
     'tuition__current_',
   ];
 
   for (const [key, value] of Object.entries(props)) {
+    // Use mapped name if available, otherwise use original
+    const mappedKey = propertyMapping[key] || key;
+
     if (value === null || value === '') {
-      parsed[key] = null;
+      parsed[mappedKey] = null;
       continue;
     }
 
     // Parse numeric fields
-    if (numericFields.includes(key)) {
+    if (numericFields.includes(mappedKey)) {
       const num = parseFloat(value);
-      parsed[key] = isNaN(num) ? null : num;
+      parsed[mappedKey] = isNaN(num) ? null : num;
       continue;
     }
 
     // Parse date fields (keep as ISO strings)
-    if (['start_date', 'end_date'].includes(key)) {
-      parsed[key] = value;
+    if (['start_date', 'end_date'].includes(mappedKey)) {
+      parsed[mappedKey] = value;
       continue;
     }
 
-    parsed[key] = value;
+    parsed[mappedKey] = value;
   }
 
   return parsed;
