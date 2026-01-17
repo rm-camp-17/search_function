@@ -1,7 +1,12 @@
 // ============================================================================
 // Camp Experts Program + Session Search
-// HubSpot UI Extension - Multi-Tab Search Experience
-// Radically rebuilt with 4 focused search modes and enhanced UI
+// HubSpot UI Extension - Multi-Tab Referral Builder
+// 5 Focused Search Modes:
+//   1. General (Company/Program/Sessions) - Traditional filter with all options
+//   2. Overnight Camp - Region, Gender Structure, Brother-Sister filters
+//   3. Specialty Camp - Camp Type with conditional Sports/Arts/Education options
+//   4. Teen Trips / Gap Year - Destination-focused search
+//   5. Other Programs - Family camps and remaining program types
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -146,10 +151,10 @@ interface FilterGroup {
 }
 
 // ----------------------------------------------------------------------------
-// Tab Configuration - 4 Focused Search Modes
+// Tab Configuration - 5 Focused Search Modes
 // ----------------------------------------------------------------------------
 
-type SearchTabId = 'overnight' | 'specialty' | 'teen' | 'other';
+type SearchTabId = 'general' | 'overnight' | 'specialty' | 'teen' | 'other';
 
 interface SearchTabConfig {
   id: SearchTabId;
@@ -158,88 +163,130 @@ interface SearchTabConfig {
   description: string;
   programTypes: string[];
   filterCategories: FilterCategoryConfig[];
+  showCompanySearch?: boolean;
+  showProgramSearch?: boolean;
+  showSessionSearch?: boolean;
 }
 
 interface FilterCategoryConfig {
   title: string;
   fields: string[];
   defaultOpen?: boolean;
+  conditionalOn?: {
+    field: string;
+    values: string[];
+  };
 }
 
-// Overnight Camps - Traditional residential camp experiences
-const OVERNIGHT_FILTERS: FilterCategoryConfig[] = [
-  { title: 'Location & Region', fields: ['region'], defaultOpen: true },
-  { title: 'Camp Type & Structure', fields: ['primary_camp_type', 'camp_subtype', 'gender_structure', 'is_brother_sister'], defaultOpen: true },
-  { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: false },
-  { title: 'Age & Grade', fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'], defaultOpen: true },
-  { title: 'Tuition & Cost', fields: ['tuition__current_'], defaultOpen: false },
-  { title: 'Activities & Features', fields: ['sport_options', 'arts_options', 'education_options', 'accommodations'], defaultOpen: false },
-  { title: 'Philosophy & Culture', fields: ['programming_philosophy'], defaultOpen: false },
-];
-
-// Specialty Programs - Arts, sports, academic focused
-const SPECIALTY_FILTERS: FilterCategoryConfig[] = [
-  { title: 'Specialty Focus', fields: ['specialty_subtype', 'primary_camp_type'], defaultOpen: true },
-  { title: 'Location & Region', fields: ['region'], defaultOpen: true },
-  { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: false },
-  { title: 'Age & Grade', fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'], defaultOpen: true },
-  { title: 'Tuition & Cost', fields: ['tuition__current_'], defaultOpen: false },
-  { title: 'Specific Activities', fields: ['sport_options', 'arts_options', 'education_options'], defaultOpen: true },
-];
-
-// Teen Trips & Gap Year - Travel and adventure experiences
-const TEEN_FILTERS: FilterCategoryConfig[] = [
-  { title: 'Experience Type', fields: ['experience_subtype', 'programming_philosophy'], defaultOpen: true },
-  { title: 'Destinations & Locations', fields: ['region', 'locations'], defaultOpen: true },
+// General Search - Company / Program / Sessions traditional filter view
+const GENERAL_FILTERS: FilterCategoryConfig[] = [
+  { title: 'Company/Partner', fields: ['name'], defaultOpen: true },
+  { title: 'Program Type', fields: ['program_type'], defaultOpen: true },
+  { title: 'Location & Region', fields: ['region', 'locations'], defaultOpen: true },
   { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: true },
   { title: 'Age & Grade', fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'], defaultOpen: true },
+  { title: 'Tuition & Cost', fields: ['tuition__current_'], defaultOpen: false },
+];
+
+// Overnight Camps - Region, Gender Structure, Is Brother-Sister
+const OVERNIGHT_FILTERS: FilterCategoryConfig[] = [
+  { title: 'Location & Region', fields: ['region'], defaultOpen: true },
+  { title: 'Camp Structure', fields: ['gender_structure', 'is_brother_sister'], defaultOpen: true },
+  { title: 'Age & Grade', fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'], defaultOpen: true },
+  { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: false },
+  { title: 'Tuition & Cost', fields: ['tuition__current_'], defaultOpen: false },
+];
+
+// Specialty Camps - Primary Camp Type, Specialty Subtype, conditional activity options
+const SPECIALTY_FILTERS: FilterCategoryConfig[] = [
+  { title: 'Camp Type', fields: ['primary_camp_type'], defaultOpen: true },
+  { title: 'Specialty Subtype', fields: ['specialty_subtype'], defaultOpen: true },
+  {
+    title: 'Sport Options',
+    fields: ['sport_options'],
+    defaultOpen: true,
+    conditionalOn: { field: 'primary_camp_type', values: ['sports'] }
+  },
+  {
+    title: 'Arts Options',
+    fields: ['arts_options'],
+    defaultOpen: true,
+    conditionalOn: { field: 'primary_camp_type', values: ['arts'] }
+  },
+  {
+    title: 'Education Options',
+    fields: ['education_options'],
+    defaultOpen: true,
+    conditionalOn: { field: 'primary_camp_type', values: ['academic', 'education'] }
+  },
+  { title: 'Location & Region', fields: ['region'], defaultOpen: false },
+  { title: 'Age & Grade', fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'], defaultOpen: false },
+  { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: false },
+  { title: 'Tuition & Cost', fields: ['tuition__current_'], defaultOpen: false },
+];
+
+// Teen Trips & Gap Year - Destination focused
+const TEEN_FILTERS: FilterCategoryConfig[] = [
+  { title: 'Destination', fields: ['region', 'locations'], defaultOpen: true },
+  { title: 'Experience Type', fields: ['experience_subtype'], defaultOpen: true },
+  { title: 'Age & Grade', fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'], defaultOpen: true },
+  { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: false },
   { title: 'Tuition & Cost', fields: ['tuition__current_'], defaultOpen: false },
   { title: 'Accommodations', fields: ['accommodations'], defaultOpen: false },
 ];
 
-// Other/Browse All - Family camp and comprehensive search
+// Other - Remaining program types (family camp, etc.)
 const OTHER_FILTERS: FilterCategoryConfig[] = [
   { title: 'Program Type', fields: ['program_type'], defaultOpen: true },
   { title: 'Location & Region', fields: ['region', 'locations'], defaultOpen: true },
-  { title: 'Program Characteristics', fields: ['primary_camp_type', 'camp_subtype', 'experience_subtype', 'specialty_subtype', 'gender_structure'], defaultOpen: false },
-  { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: false },
+  { title: 'Program Characteristics', fields: ['primary_camp_type', 'camp_subtype', 'gender_structure'], defaultOpen: false },
   { title: 'Age & Grade', fields: ['age__min_', 'age__max_', 'grade_range_min', 'grade_range_max'], defaultOpen: false },
+  { title: 'Dates & Duration', fields: ['start_date', 'end_date', 'weeks'], defaultOpen: false },
   { title: 'Tuition & Cost', fields: ['tuition__current_'], defaultOpen: false },
-  { title: 'Activities & Features', fields: ['sport_options', 'arts_options', 'education_options', 'accommodations'], defaultOpen: false },
-  { title: 'Philosophy & Culture', fields: ['programming_philosophy', 'is_brother_sister'], defaultOpen: false },
 ];
 
 const SEARCH_TABS: SearchTabConfig[] = [
   {
+    id: 'general',
+    label: 'Company/Program/Sessions',
+    shortLabel: 'General',
+    description: 'Search by company, program, or session with all filter options available.',
+    programTypes: [],
+    filterCategories: GENERAL_FILTERS,
+    showCompanySearch: true,
+    showProgramSearch: true,
+    showSessionSearch: true,
+  },
+  {
     id: 'overnight',
-    label: 'Overnight Camps',
+    label: 'Overnight Camp',
     shortLabel: 'Overnight',
-    description: 'Traditional sleepaway and day camp experiences with residential options.',
+    description: 'Traditional sleepaway camps. Filter by region, gender structure, and brother-sister options.',
     programTypes: ['overnight_camp', 'day_camp'],
     filterCategories: OVERNIGHT_FILTERS,
   },
   {
     id: 'specialty',
-    label: 'Specialty Programs',
+    label: 'Specialty Camp',
     shortLabel: 'Specialty',
-    description: 'Focused programs for arts, sports, academics, and special interests.',
+    description: 'Focused programs for sports, arts, and education. Select a camp type to see specific activity options.',
     programTypes: ['specialty_program'],
     filterCategories: SPECIALTY_FILTERS,
   },
   {
     id: 'teen',
-    label: 'Teen Trips & Gap Year',
+    label: 'Teen Trips / Gap Year',
     shortLabel: 'Teen/Gap',
-    description: 'Travel adventures, gap year programs, and teen experiences worldwide.',
+    description: 'Travel adventures and gap year programs. Browse by destination.',
     programTypes: ['teen_trip', 'gap_year'],
     filterCategories: TEEN_FILTERS,
   },
   {
     id: 'other',
-    label: 'Browse All Programs',
-    shortLabel: 'All',
-    description: 'Search across all program types including family camps and specialized offerings.',
-    programTypes: [],
+    label: 'Other Programs',
+    shortLabel: 'Other',
+    description: 'Family camps and other specialized offerings not covered by the other categories.',
+    programTypes: ['family_camp'],
     filterCategories: OTHER_FILTERS,
   },
 ];
@@ -281,7 +328,7 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
   const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [companyOptions, setCompanyOptions] = useState<PropertyOption[]>([]);
-  const [activeTab, setActiveTab] = useState<SearchTabId>('overnight');
+  const [activeTab, setActiveTab] = useState<SearchTabId>('general');
 
   // UI state
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set());
@@ -543,7 +590,7 @@ const ProgramSearchCard: React.FC<ExtensionProps> = ({ context, actions }) => {
 
       <Divider />
 
-      {/* Tab Navigation - Using ToggleGroup for tab selection */}
+      {/* Tab Navigation */}
       <ToggleGroup
         name="searchTab"
         label="Search Mode"
@@ -700,6 +747,9 @@ const TabContent: React.FC<TabContentProps> = ({
   onAddFilter,
   onRemoveFilter,
 }) => {
+  const isGeneralTab = tabConfig.id === 'general';
+  const isSpecialtyTab = tabConfig.id === 'specialty';
+
   return (
     <Flex direction="column" gap="md">
       {/* Tab Description */}
@@ -711,12 +761,16 @@ const TabContent: React.FC<TabContentProps> = ({
       {/* Quick Search Bar */}
       <Tile>
         <Flex direction="column" gap="sm">
-          <Text format={{ fontWeight: 'bold' }}>Quick Search</Text>
+          <Text format={{ fontWeight: 'bold' }}>
+            {isGeneralTab ? 'Search Everything' : 'Quick Search'}
+          </Text>
           <Flex direction="row" gap="sm" align="end">
             <Box>
               <Input
                 name="searchQuery"
-                label="Search programs, sessions, partners..."
+                label={isGeneralTab
+                  ? "Search by company name, program name, or session details..."
+                  : "Search programs, sessions, partners..."}
                 placeholder="Type to search..."
                 value={searchQuery}
                 onChange={onSearchQueryChange}
@@ -729,11 +783,13 @@ const TabContent: React.FC<TabContentProps> = ({
         </Flex>
       </Tile>
 
-      {/* Partner Selection */}
+      {/* Partner Selection - Enhanced for General tab */}
       <Tile>
         <Flex direction="column" gap="sm">
           <Flex direction="row" align="center" gap="xs">
-            <Text format={{ fontWeight: 'bold' }}>Step 1: Select Partners</Text>
+            <Text format={{ fontWeight: 'bold' }}>
+              {isGeneralTab ? 'Filter by Partner Company' : 'Select Partners'}
+            </Text>
             {selectedCompanies.length > 0 && (
               <Tag variant="success">{selectedCompanies.length} selected</Tag>
             )}
@@ -764,11 +820,20 @@ const TabContent: React.FC<TabContentProps> = ({
         <Tile>
           <Flex direction="column" gap="sm">
             <Flex direction="row" align="center" gap="xs">
-              <Text format={{ fontWeight: 'bold' }}>Step 2: Refine with Filters</Text>
+              <Text format={{ fontWeight: 'bold' }}>
+                {isGeneralTab ? 'All Filter Options' : 'Refine Your Search'}
+              </Text>
               {activeFilters.length > 0 && (
                 <Tag variant="warning">{activeFilters.length} active</Tag>
               )}
             </Flex>
+
+            {/* Specialty tab hint */}
+            {isSpecialtyTab && !activeFilters.find(f => f.field === 'primary_camp_type') && (
+              <Alert title="Select a Camp Type" variant="info">
+                Choose a primary camp type (Sports, Arts, or Education) to see specific activity options.
+              </Alert>
+            )}
 
             {tabConfig.filterCategories.map((category, idx) => (
               <FilterCategory
@@ -812,6 +877,22 @@ const FilterCategory: React.FC<FilterCategoryProps> = ({
   onRemoveFilter,
   tabProgramTypes,
 }) => {
+  // Check conditional visibility for category
+  if (category.conditionalOn) {
+    const conditionFilter = activeFilters.find(f => f.field === category.conditionalOn!.field);
+    if (!conditionFilter) return null;
+
+    const filterValue = Array.isArray(conditionFilter.value)
+      ? conditionFilter.value
+      : [String(conditionFilter.value)];
+
+    const hasMatchingValue = filterValue.some(v =>
+      category.conditionalOn!.values.includes(String(v).toLowerCase())
+    );
+
+    if (!hasMatchingValue) return null;
+  }
+
   const categoryFields = schema.filterableFields.filter(f => {
     if (!category.fields.includes(f.field)) return false;
 
