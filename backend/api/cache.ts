@@ -9,6 +9,7 @@ import type { ApiResponse, CacheStats } from '../types/index.js';
 import {
   getCacheStats,
   refreshCache,
+  refreshCacheFull,
   isCacheStale,
   getAccessToken,
 } from '../lib/cache.js';
@@ -64,9 +65,18 @@ export default async function handler(
 
   if (req.method === 'POST') {
     // Force cache refresh (uses HUBSPOT_ACCESS_TOKEN env var)
+    // Use ?full=true to wait for associations (takes longer but returns complete data)
     try {
       const accessToken = getAccessToken();
-      await refreshCache(accessToken);
+      const fullRefresh = req.query.full === 'true';
+
+      console.log(`[Cache] Starting ${fullRefresh ? 'full' : 'quick'} cache refresh`);
+
+      if (fullRefresh) {
+        await refreshCacheFull(accessToken);
+      } else {
+        await refreshCache(accessToken);
+      }
       const stats = getCacheStats();
 
       const response: ApiResponse<CacheStats> = {

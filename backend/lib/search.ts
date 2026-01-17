@@ -23,6 +23,8 @@ import {
   getAllPrograms,
   getSessionsForProgram,
   getCompanyForProgram,
+  areAssociationsLoaded,
+  getCacheStats,
 } from './cache.js';
 import {
   getPropertyDefinition,
@@ -55,7 +57,12 @@ export function executeSearch(request: SearchRequest): SearchResponse {
   // Get all programs from cache
   let programs = getAllPrograms();
 
+  // Check association loading status
+  const associationsReady = areAssociationsLoaded();
+  const stats = getCacheStats();
+
   console.log(`[Search] Starting search - Total programs in cache: ${programs.length}`);
+  console.log(`[Search] Associations loaded: ${associationsReady}, Programs with sessions: ${stats.programsWithSessions}`);
   console.log(`[Search] Request - programType: "${programType}", includeEmptyResults: ${includeEmptyResults}, query: "${query || ''}"`);
 
   // Step 1: Filter by program type if specified (case-insensitive)

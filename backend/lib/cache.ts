@@ -24,6 +24,10 @@ let cache: CachedData = {
   refreshInProgress: false,
 };
 
+// Track if associations are still loading (separate from objects)
+let associationsLoading = false;
+let associationsLastRefreshed = new Date(0);
+
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 // HubSpot API configuration
@@ -31,10 +35,10 @@ const HUBSPOT_API_BASE = 'https://api.hubapi.com';
 const PROGRAM_OBJECT_TYPE = '2-50911446';
 const SESSION_OBJECT_TYPE = '2-50911450';
 
-// Rate limiting configuration - be conservative to avoid 429s
+// Rate limiting configuration - balance between speed and avoiding 429s
 const ASSOCIATION_BATCH_SIZE = 50; // Smaller batches
-const ASSOCIATION_BATCH_DELAY_MS = 500; // 500ms between batches
-const ASSOCIATION_RETRY_DELAY_MS = 3000; // 3s initial retry delay
+const ASSOCIATION_BATCH_DELAY_MS = 250; // 250ms between batches (was 500ms)
+const ASSOCIATION_RETRY_DELAY_MS = 2000; // 2s initial retry delay
 const ASSOCIATION_MAX_RETRIES = 5;
 
 // Get access token from environment
@@ -54,7 +58,7 @@ export function getCache(): CachedData {
   return cache;
 }
 
-export function getCacheStats(): CacheStats {
+export function getCacheStats(): CacheStats & { associationsLoading: boolean; programsWithSessions: number } {
   return {
     companiesCount: cache.companies.size,
     programsCount: cache.programs.size,
@@ -64,7 +68,13 @@ export function getCacheStats(): CacheStats {
       : null,
     refreshInProgress: cache.refreshInProgress,
     cacheAgeMs: Date.now() - cache.lastRefreshed.getTime(),
+    associationsLoading,
+    programsWithSessions: cache.programToSessions.size,
   };
+}
+
+export function areAssociationsLoaded(): boolean {
+  return associationsLastRefreshed.getTime() > 0 && !associationsLoading;
 }
 
 export function isCacheStale(): boolean {
@@ -205,8 +215,110 @@ async function fetchAssociations(
 }
 
 // ----------------------------------------------------------------------------
-// Cache Refresh Logic
+// Cache Refresh Logic - Two-Phase Approach
+// Phase 1: Load objects (fast, ~5s) - makes cache usable for search
+// Phase 2: Load associations (slow, ~30-60s) - runs in background
 // ----------------------------------------------------------------------------
+
+const companyProperties = [
+  'name', 'short_program_name', 'domain', 'email', 'phone', 'phone_2',
+  'country_hq', 'us_state', 'four_sentence_summary_for_parents',
+  'highlights_and_any_concerns_expressed', 'programming', 'religious_structure',
+  'vibe', 'territory', 'commission_rate', 'commission_type', 'commission_basis',
+  'commission_structure___summary', 'companyid', 'provider_ext_id_salesforce',
+  'website_for_recommendation_entry', 'tfs_weeks', 'session_weeks', 'lifecyclestage',
+];
+
+const programProperties = [
+  'program_name', 'program_id', 'program_type', 'description',
+  'primary_camp_type', 'camp_subtype', 'experience_subtype', 'specialty_subtype',
+  'region', 'gender_structure', 'brother_sister', 'is_brother_sister',
+  'programming_philosophy', 'accommodations', 'provider_id_external_',
+];
+
+const sessionProperties = [
+  'session_name', 'session_id', 'start_date', 'end_date', 'weeks',
+  'age__min_', 'age__max_', 'grade_range_min', 'grade_range_max',
+  'tuition__current_', 'tuition_currency', 'program_type', 'primary_camp_type',
+  'experience_subtype', 'specialty_subtype', 'locations', 'sport_options',
+  'arts_options', 'education_options', 'itinerary', 'notes__c',
+];
+
+// Phase 1: Load objects only (fast)
+async function loadObjects(accessToken: string): Promise<{
+  companies: HubSpotObject[];
+  programs: HubSpotObject[];
+  sessions: HubSpotObject[];
+}> {
+  console.log('Phase 1: Fetching objects from HubSpot...');
+  const [companies, programs, sessions] = await Promise.all([
+    fetchHubSpotObjects(accessToken, 'companies', companyProperties),
+    fetchHubSpotObjects(accessToken, PROGRAM_OBJECT_TYPE, programProperties),
+    fetchHubSpotObjects(accessToken, SESSION_OBJECT_TYPE, sessionProperties),
+  ]);
+  console.log(`Phase 1 complete: ${companies.length} companies, ${programs.length} programs, ${sessions.length} sessions`);
+  return { companies, programs, sessions };
+}
+
+// Phase 2: Load associations (slow, runs in background)
+async function loadAssociations(accessToken: string, programIds: string[]): Promise<void> {
+  if (associationsLoading) {
+    console.log('Associations already loading, skipping...');
+    return;
+  }
+
+  associationsLoading = true;
+  console.log(`Phase 2: Fetching associations for ${programIds.length} programs...`);
+
+  try {
+    // Fetch program -> company associations
+    console.log('Fetching program-company associations...');
+    const programToCompanyAssoc = await fetchAssociations(
+      accessToken, PROGRAM_OBJECT_TYPE, 'companies', programIds
+    );
+    console.log(`Fetched ${programToCompanyAssoc.size} program-company associations`);
+
+    // Apply company associations immediately
+    for (const [programId, companyIds] of programToCompanyAssoc.entries()) {
+      if (companyIds.length > 0) {
+        cache.programToCompany.set(programId, companyIds[0]);
+        const program = cache.programs.get(programId);
+        if (program) {
+          program.companyId = companyIds[0];
+        }
+      }
+    }
+
+    // Fetch program -> session associations
+    console.log('Fetching program-session associations...');
+    const programToSessionAssoc = await fetchAssociations(
+      accessToken, PROGRAM_OBJECT_TYPE, SESSION_OBJECT_TYPE, programIds
+    );
+    console.log(`Fetched ${programToSessionAssoc.size} program-session associations`);
+
+    // Apply session associations
+    for (const [programId, sessionIds] of programToSessionAssoc.entries()) {
+      if (sessionIds.length > 0) {
+        cache.programToSessions.set(programId, sessionIds);
+      }
+    }
+
+    // Count how many sessions are linked
+    const totalLinkedSessions = Array.from(cache.programToSessions.values())
+      .reduce((acc, ids) => acc + ids.length, 0);
+
+    console.log(`Phase 2 complete - Association summary:`);
+    console.log(`  - Programs with company: ${cache.programToCompany.size}`);
+    console.log(`  - Programs with sessions: ${cache.programToSessions.size}`);
+    console.log(`  - Total session links: ${totalLinkedSessions}`);
+
+    associationsLastRefreshed = new Date();
+  } catch (error) {
+    console.error('Association loading failed:', error);
+  } finally {
+    associationsLoading = false;
+  }
+}
 
 export async function refreshCache(accessToken: string): Promise<void> {
   if (cache.refreshInProgress) {
@@ -215,52 +327,17 @@ export async function refreshCache(accessToken: string): Promise<void> {
   }
 
   cache.refreshInProgress = true;
-  console.log('Starting cache refresh...');
+  console.log('Starting cache refresh (two-phase approach)...');
 
   try {
-    // Define properties to fetch for each object type
-    const companyProperties = [
-      'name', 'short_program_name', 'domain', 'email', 'phone', 'phone_2',
-      'country_hq', 'us_state', 'four_sentence_summary_for_parents',
-      'highlights_and_any_concerns_expressed', 'programming', 'religious_structure',
-      'vibe', 'territory', 'commission_rate', 'commission_type', 'commission_basis',
-      'commission_structure___summary', 'companyid', 'provider_ext_id_salesforce',
-      'website_for_recommendation_entry', 'tfs_weeks', 'session_weeks', 'lifecyclestage',
-    ];
+    // Phase 1: Load objects (fast, ~5s)
+    const { companies, programs, sessions } = await loadObjects(accessToken);
 
-    const programProperties = [
-      'program_name', 'program_id', 'program_type', 'description',
-      'primary_camp_type', 'camp_subtype', 'experience_subtype', 'specialty_subtype',
-      'region', 'gender_structure', 'brother_sister', 'is_brother_sister',
-      'programming_philosophy', 'accommodations', 'provider_id_external_',
-    ];
-
-    const sessionProperties = [
-      'session_name', 'session_id', 'start_date', 'end_date', 'weeks',
-      'age__min_', 'age__max_', 'grade_range_min', 'grade_range_max',
-      'tuition__current_', 'tuition_currency', 'program_type', 'primary_camp_type',
-      'experience_subtype', 'specialty_subtype', 'locations', 'sport_options',
-      'arts_options', 'education_options', 'itinerary', 'notes__c',
-    ];
-
-    // Fetch all objects in parallel (fast, no rate limit issues)
-    console.log('Fetching objects from HubSpot...');
-    const [companies, programs, sessions] = await Promise.all([
-      fetchHubSpotObjects(accessToken, 'companies', companyProperties),
-      fetchHubSpotObjects(accessToken, PROGRAM_OBJECT_TYPE, programProperties),
-      fetchHubSpotObjects(accessToken, SESSION_OBJECT_TYPE, sessionProperties),
-    ]);
-
-    console.log(`Fetched ${companies.length} companies, ${programs.length} programs, ${sessions.length} sessions`);
-
-    // Build new cache maps for objects first
+    // Build cache maps for objects
     const newCompanies = new Map<string, Company>();
     const newPrograms = new Map<string, Program>();
     const newSessions = new Map<string, Session>();
-    const newProgramToCompany = new Map<string, string>();
-    const newProgramToSessions = new Map<string, string[]>();
 
-    // Process companies
     for (const obj of companies) {
       newCompanies.set(obj.id, {
         id: obj.id,
@@ -270,7 +347,6 @@ export async function refreshCache(accessToken: string): Promise<void> {
       });
     }
 
-    // Process sessions
     for (const obj of sessions) {
       newSessions.set(obj.id, {
         id: obj.id,
@@ -280,7 +356,6 @@ export async function refreshCache(accessToken: string): Promise<void> {
       });
     }
 
-    // Process programs
     for (const obj of programs) {
       newPrograms.set(obj.id, {
         id: obj.id,
@@ -298,66 +373,100 @@ export async function refreshCache(accessToken: string): Promise<void> {
     }
     console.log('Program type distribution:', Object.fromEntries(programTypeCounts));
 
-    // Fetch associations - this is the slow part due to rate limits
-    const programIds = programs.map(p => p.id);
-    console.log(`Fetching associations for ${programIds.length} programs...`);
-
-    // Fetch program -> company associations
-    console.log('Fetching program-company associations...');
-    const programToCompanyAssoc = await fetchAssociations(
-      accessToken, PROGRAM_OBJECT_TYPE, 'companies', programIds
-    );
-    console.log(`Fetched ${programToCompanyAssoc.size} program-company associations`);
-
-    // Fetch program -> session associations
-    console.log('Fetching program-session associations...');
-    const programToSessionAssoc = await fetchAssociations(
-      accessToken, PROGRAM_OBJECT_TYPE, SESSION_OBJECT_TYPE, programIds
-    );
-    console.log(`Fetched ${programToSessionAssoc.size} program-session associations`);
-
-    // Apply associations
-    for (const [programId, companyIds] of programToCompanyAssoc.entries()) {
-      if (companyIds.length > 0) {
-        newProgramToCompany.set(programId, companyIds[0]);
-        // Update program with companyId
-        const program = newPrograms.get(programId);
-        if (program) {
-          program.companyId = companyIds[0];
-        }
-      }
-    }
-
-    for (const [programId, sessionIds] of programToSessionAssoc.entries()) {
-      if (sessionIds.length > 0) {
-        newProgramToSessions.set(programId, sessionIds);
-      }
-    }
-
-    // Count how many sessions are linked
-    const totalLinkedSessions = Array.from(newProgramToSessions.values())
-      .reduce((acc, ids) => acc + ids.length, 0);
-
-    console.log(`Association summary:`);
-    console.log(`  - Programs with company: ${newProgramToCompany.size}`);
-    console.log(`  - Programs with sessions: ${newProgramToSessions.size}`);
-    console.log(`  - Total session links: ${totalLinkedSessions}`);
-
-    // Update cache atomically
+    // Update cache with objects (makes cache usable immediately)
+    // Preserve existing associations if we have them
     cache = {
       companies: newCompanies,
       programs: newPrograms,
       sessions: newSessions,
-      programToCompany: newProgramToCompany,
-      programToSessions: newProgramToSessions,
+      programToCompany: cache.programToCompany.size > 0 ? cache.programToCompany : new Map(),
+      programToSessions: cache.programToSessions.size > 0 ? cache.programToSessions : new Map(),
       lastRefreshed: new Date(),
       refreshInProgress: false,
     };
 
-    console.log('Cache refresh complete');
-    console.log(`Final cache stats: ${newPrograms.size} programs, ${newSessions.size} sessions, ${newProgramToSessions.size} programs with linked sessions`);
+    console.log(`Phase 1 cache update complete: ${newPrograms.size} programs, ${newSessions.size} sessions`);
+    console.log(`Existing associations preserved: ${cache.programToSessions.size} programs with sessions`);
+
+    // Phase 2: Load associations in background (don't await)
+    const programIds = programs.map(p => p.id);
+    loadAssociations(accessToken, programIds).catch(err => {
+      console.error('Background association loading failed:', err);
+    });
+
   } catch (error) {
     console.error('Cache refresh failed:', error);
+    cache.refreshInProgress = false;
+    throw error;
+  }
+}
+
+// Full refresh that waits for associations (use for cron/manual refresh)
+export async function refreshCacheFull(accessToken: string): Promise<void> {
+  if (cache.refreshInProgress || associationsLoading) {
+    console.log('Cache refresh already in progress, skipping...');
+    return;
+  }
+
+  cache.refreshInProgress = true;
+  console.log('Starting full cache refresh...');
+
+  try {
+    // Phase 1: Load objects
+    const { companies, programs, sessions } = await loadObjects(accessToken);
+
+    // Build cache maps
+    const newCompanies = new Map<string, Company>();
+    const newPrograms = new Map<string, Program>();
+    const newSessions = new Map<string, Session>();
+
+    for (const obj of companies) {
+      newCompanies.set(obj.id, {
+        id: obj.id,
+        properties: obj.properties as Record<string, string | number | boolean | null>,
+        createdAt: obj.createdAt,
+        updatedAt: obj.updatedAt,
+      });
+    }
+
+    for (const obj of sessions) {
+      newSessions.set(obj.id, {
+        id: obj.id,
+        properties: parseSessionProperties(obj.properties),
+        createdAt: obj.createdAt,
+        updatedAt: obj.updatedAt,
+      });
+    }
+
+    for (const obj of programs) {
+      newPrograms.set(obj.id, {
+        id: obj.id,
+        properties: parseProgramProperties(obj.properties),
+        createdAt: obj.createdAt,
+        updatedAt: obj.updatedAt,
+      });
+    }
+
+    // Update cache with objects
+    cache = {
+      companies: newCompanies,
+      programs: newPrograms,
+      sessions: newSessions,
+      programToCompany: new Map(),
+      programToSessions: new Map(),
+      lastRefreshed: new Date(),
+      refreshInProgress: false,
+    };
+
+    // Phase 2: Load associations (wait for completion)
+    const programIds = programs.map(p => p.id);
+    await loadAssociations(accessToken, programIds);
+
+    console.log('Full cache refresh complete');
+    console.log(`Final stats: ${cache.programs.size} programs, ${cache.sessions.size} sessions, ${cache.programToSessions.size} with linked sessions`);
+
+  } catch (error) {
+    console.error('Full cache refresh failed:', error);
     cache.refreshInProgress = false;
     throw error;
   }
