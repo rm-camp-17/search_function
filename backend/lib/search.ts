@@ -258,14 +258,22 @@ function evaluateFilter(
 
   // Get property definition for type-aware comparison
   const propDef = getPropertyDefinition(objectType, field);
+  const isDateField = propDef?.type === 'date' || propDef?.type === 'datetime' ||
+                      field === 'start_date' || field === 'end_date';
 
   // Handle null/undefined values gracefully
   // For "contains any" type searches, null should not match
   // For "does not contain" or exclusion, null should be handled appropriately
   if (propValue === null || propValue === undefined) {
     // For gte/lte on age filters, null means "no restriction" - should match
-    if ((field === 'age_min' && operator === 'lte') ||
-        (field === 'age_max' && operator === 'gte')) {
+    if ((field === 'age__min_' && operator === 'lte') ||
+        (field === 'age__max_' && operator === 'gte')) {
+      return true;
+    }
+    // For date filters with null values, be lenient - include the session
+    // This means: if a session has no start_date, it could start anytime
+    // If a session has no end_date, it could end anytime
+    if (isDateField && (operator === 'gte' || operator === 'lte')) {
       return true;
     }
     // For other cases, null doesn't match unless we're checking for null
@@ -273,6 +281,36 @@ function evaluateFilter(
       return true;
     }
     return false;
+  }
+
+  // For date fields, use string comparison (ISO dates compare correctly)
+  if (isDateField) {
+    const propDateStr = String(propValue).slice(0, 10); // Get YYYY-MM-DD part
+    const filterDateStr = String(value).slice(0, 10);
+
+    switch (operator) {
+      case 'eq':
+        return propDateStr === filterDateStr;
+      case 'neq':
+        return propDateStr !== filterDateStr;
+      case 'gte':
+        // Session start_date >= filter value means "starts no earlier than"
+        return propDateStr >= filterDateStr;
+      case 'lte':
+        // Session end_date <= filter value means "ends no later than"
+        return propDateStr <= filterDateStr;
+      case 'gt':
+        return propDateStr > filterDateStr;
+      case 'lt':
+        return propDateStr < filterDateStr;
+      case 'between': {
+        const [minDate, maxDate] = value as [string, string];
+        return propDateStr >= String(minDate).slice(0, 10) &&
+               propDateStr <= String(maxDate).slice(0, 10);
+      }
+      default:
+        break;
+    }
   }
 
   switch (operator) {
