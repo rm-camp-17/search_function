@@ -263,6 +263,35 @@
       "options": []
     },
     {
+      "name": "commission_cap_type",
+      "label": "Commission Cap Type",
+      "type": "enumeration",
+      "fieldType": "select",
+      "description": "Whether/how the commission is capped",
+      "searchable": false,
+      "filterable": false,
+      "facetable": false,
+      "displayInResults": false,
+      "displayOrder": 18,
+      "options": [
+        {"value": "none", "label": "None", "displayOrder": 1},
+        {"value": "weeks", "label": "Weeks", "displayOrder": 2},
+        {"value": "amount", "label": "Amount", "displayOrder": 3}
+      ]
+    },
+    {
+      "name": "commission_cap_value",
+      "label": "Commission Cap Value",
+      "type": "number",
+      "fieldType": "number",
+      "description": "Numeric value of the commission cap (weeks or dollar amount)",
+      "searchable": false,
+      "filterable": false,
+      "facetable": false,
+      "displayInResults": false,
+      "displayOrder": 19
+    },
+    {
       "name": "commission_structure___summary",
       "label": "Commission Structure - Summary",
       "type": "string",
@@ -272,7 +301,7 @@
       "filterable": false,
       "facetable": false,
       "displayInResults": false,
-      "displayOrder": 18
+      "displayOrder": 20
     },
     {
       "name": "companyid",
@@ -284,7 +313,7 @@
       "filterable": false,
       "facetable": false,
       "displayInResults": false,
-      "displayOrder": 19
+      "displayOrder": 21
     },
     {
       "name": "provider_ext_id_salesforce",
@@ -296,7 +325,7 @@
       "filterable": false,
       "facetable": false,
       "displayInResults": false,
-      "displayOrder": 20
+      "displayOrder": 22
     },
     {
       "name": "website_for_recommendation_entry",
@@ -308,7 +337,7 @@
       "filterable": false,
       "facetable": false,
       "displayInResults": false,
-      "displayOrder": 21
+      "displayOrder": 23
     },
     {
       "name": "tfs_weeks",
@@ -320,7 +349,7 @@
       "filterable": false,
       "facetable": false,
       "displayInResults": false,
-      "displayOrder": 22
+      "displayOrder": 24
     },
     {
       "name": "session_weeks",
@@ -332,7 +361,7 @@
       "filterable": false,
       "facetable": false,
       "displayInResults": false,
-      "displayOrder": 23
+      "displayOrder": 25
     },
     {
       "name": "lifecyclestage",
@@ -344,7 +373,7 @@
       "filterable": false,
       "facetable": false,
       "displayInResults": true,
-      "displayOrder": 24,
+      "displayOrder": 26,
       "options": [
         {"value": "subscriber", "label": "Subscriber", "displayOrder": 1},
         {"value": "lead", "label": "Lead", "displayOrder": 2},
