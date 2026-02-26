@@ -239,6 +239,8 @@ const companyProperties = [
   'commission_rate',
   'commission_type',
   'commission_basis',
+  'commission_cap_type',
+  'commission_cap_value',
   'commission_structure___summary',
   'programid',                 // "CompanyId" - note: HubSpot internal name is 'programid'
   'provider_ext_id_salesforce',

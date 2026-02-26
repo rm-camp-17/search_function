@@ -1361,6 +1361,12 @@ const ProgramResultCard: React.FC<ProgramResultCardProps> = ({
     ? formatCurrencyRange(sessions.map(s => Number(s.properties.tuition__current_) || 0))
     : '';
 
+  // Commission calculations
+  const commissionConfig = getCommissionConfig(company);
+  const lifetimeCommission = commissionConfig
+    ? calculateLifetimeCommission(sessions, commissionConfig)
+    : null;
+
   return (
     <Tile>
       <Flex direction="column" gap="sm">
@@ -1409,6 +1415,16 @@ const ProgramResultCard: React.FC<ProgramResultCardProps> = ({
           {isBrotherSister && <Tag variant="warning">Brother/Sister</Tag>}
           {sessionAgeRange && <Tag variant="default">Ages: {sessionAgeRange}</Tag>}
           {sessionTuitionRange && <Tag variant="default">{sessionTuitionRange}</Tag>}
+          {commissionConfig && (
+            <Tag variant="success">
+              {commissionConfig.rate > 0
+                ? `${Math.round(commissionConfig.rate * 100)}% ${getCommissionModelLabel(commissionConfig)}`
+                : getCommissionModelLabel(commissionConfig)}
+            </Tag>
+          )}
+          {lifetimeCommission != null && lifetimeCommission > 0 && (
+            <Tag variant="success">LTV: {formatCurrency(lifetimeCommission)}</Tag>
+          )}
         </Flex>
 
         {/* Expanded Details */}
@@ -1437,6 +1453,14 @@ const ProgramResultCard: React.FC<ProgramResultCardProps> = ({
                   <Text>{formatMultiValue(String(program.properties.programming_philosophy))}</Text>
                 </DescriptionListItem>
               )}
+              {commissionConfig && (
+                <DescriptionListItem label="Commission">
+                  <Text>
+                    {Math.round(commissionConfig.rate * 100)}% {getCommissionModelLabel(commissionConfig)}
+                    {commissionConfig.summary ? ` — ${commissionConfig.summary}` : ''}
+                  </Text>
+                </DescriptionListItem>
+              )}
             </DescriptionList>
 
             {sessions.length > 0 && (
@@ -1450,6 +1474,7 @@ const ProgramResultCard: React.FC<ProgramResultCardProps> = ({
                       <TableHeader>Ages</TableHeader>
                       <TableHeader>Duration</TableHeader>
                       <TableHeader>Tuition</TableHeader>
+                      {commissionConfig && <TableHeader>Commission</TableHeader>}
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -1458,6 +1483,7 @@ const ProgramResultCard: React.FC<ProgramResultCardProps> = ({
                         key={session.id}
                         session={session}
                         buildLink={buildLink}
+                        commissionConfig={commissionConfig}
                       />
                     ))}
                   </TableBody>
@@ -1484,9 +1510,10 @@ const ProgramResultCard: React.FC<ProgramResultCardProps> = ({
 interface SessionRowProps {
   session: Session;
   buildLink: (objectType: 'program' | 'session' | 'company', objectId: string) => string;
+  commissionConfig?: CommissionConfig | null;
 }
 
-const SessionRow: React.FC<SessionRowProps> = ({ session, buildLink }) => {
+const SessionRow: React.FC<SessionRowProps> = ({ session, buildLink, commissionConfig }) => {
   const props = session.properties;
 
   const sessionName = String(props.session_name || 'Unnamed Session');
@@ -1503,6 +1530,10 @@ const SessionRow: React.FC<SessionRowProps> = ({ session, buildLink }) => {
   const tuition = props.tuition__current_ ? formatCurrency(Number(props.tuition__current_)) : '-';
   const weeks = props.weeks ? `${props.weeks} wks` : '-';
 
+  const sessionCommission = commissionConfig
+    ? calculateSessionCommission(session, commissionConfig)
+    : null;
+
   return (
     <TableRow>
       <TableCell>
@@ -1514,6 +1545,11 @@ const SessionRow: React.FC<SessionRowProps> = ({ session, buildLink }) => {
       <TableCell>{ageRange}</TableCell>
       <TableCell>{weeks}</TableCell>
       <TableCell>{tuition}</TableCell>
+      {commissionConfig && (
+        <TableCell>
+          {sessionCommission != null ? formatCurrency(sessionCommission) : '-'}
+        </TableCell>
+      )}
     </TableRow>
   );
 };
@@ -1582,6 +1618,140 @@ function formatCurrencyRange(amounts: number[]): string {
     return formatCurrency(min);
   }
   return `${formatCurrency(min)} - ${formatCurrency(max)}`;
+}
+
+// ----------------------------------------------------------------------------
+// Commission Calculation (simplified for search context — assumes Y1, no prior credits)
+// Models based on ce_billing commission-calculator.ts
+// ----------------------------------------------------------------------------
+
+type CommissionModel = 'yearly' | 'tfs' | 'full_summer_cap' | 'fixed_fee' | 'standard';
+
+interface CommissionConfig {
+  model: CommissionModel;
+  rate: number;
+  capType: string;
+  capValue: number;
+  tfsWeeks: number;
+  commissionType: string;
+  summary: string;
+}
+
+function getCommissionConfig(company: Company | null): CommissionConfig | null {
+  if (!company) return null;
+  const props = company.properties;
+
+  const rawRate = Number(props.commission_rate) || 0;
+  if (rawRate <= 0) return null;
+
+  const commissionType = String(props.commission_type || '').toLowerCase();
+  const commissionBasis = String(props.commission_basis || '').toLowerCase();
+  const capType = String(props.commission_cap_type || 'none').toLowerCase();
+  const capValue = Number(props.commission_cap_value) || 0;
+  const tfsWeeks = Number(props.tfs_weeks) || 0;
+  const summary = String(props.commission_structure___summary || '');
+
+  // Normalize rate: if stored as whole number (e.g. 10), convert to decimal (0.10)
+  const rate = rawRate > 1 ? rawRate / 100 : rawRate;
+
+  // Determine commission model from available fields
+  let model: CommissionModel = 'standard';
+  if (commissionType.includes('fixed')) {
+    model = 'fixed_fee';
+  } else if (commissionBasis === 'weeks' || commissionType.includes('tfs')) {
+    model = 'tfs';
+  } else if (capType === 'amount' || commissionType.includes('full_summer')) {
+    model = 'full_summer_cap';
+  } else if (commissionType.includes('yearly')) {
+    model = 'yearly';
+  }
+
+  return { model, rate, capType, capValue, tfsWeeks, commissionType, summary };
+}
+
+function calculateSessionCommission(
+  session: Session,
+  config: CommissionConfig
+): number | null {
+  const tuition = Number(session.properties.tuition__current_) || 0;
+  const weeks = Number(session.properties.weeks) || 0;
+
+  switch (config.model) {
+    case 'tfs': {
+      if (tuition <= 0) return null;
+      if (config.tfsWeeks <= 0) return tuition * config.rate;
+      const creditableWeeks = Math.min(weeks, config.tfsWeeks);
+      return (creditableWeeks / config.tfsWeeks) * tuition * config.rate;
+    }
+    case 'full_summer_cap': {
+      if (tuition <= 0) return null;
+      if (config.capValue <= 0) return tuition * config.rate;
+      return Math.min(tuition, config.capValue) * config.rate;
+    }
+    case 'fixed_fee':
+      return null; // No per-session amount available from company fields
+    case 'yearly':
+    case 'standard':
+    default:
+      if (tuition <= 0) return null;
+      return tuition * config.rate;
+  }
+}
+
+function calculateLifetimeCommission(
+  sessions: Session[],
+  config: CommissionConfig
+): number | null {
+  if (config.model === 'fixed_fee') return null;
+
+  if (config.model === 'tfs' && config.tfsWeeks > 0) {
+    let weeksUsed = 0;
+    let total = 0;
+    for (const session of sessions) {
+      const tuition = Number(session.properties.tuition__current_) || 0;
+      const weeks = Number(session.properties.weeks) || 0;
+      if (tuition <= 0) continue;
+      const remaining = Math.max(0, config.tfsWeeks - weeksUsed);
+      if (remaining <= 0) break;
+      const creditable = Math.min(weeks, remaining);
+      total += (creditable / config.tfsWeeks) * tuition * config.rate;
+      weeksUsed += creditable;
+    }
+    return total > 0 ? total : null;
+  }
+
+  if (config.model === 'full_summer_cap' && config.capValue > 0) {
+    let tuitionUsed = 0;
+    let total = 0;
+    for (const session of sessions) {
+      const tuition = Number(session.properties.tuition__current_) || 0;
+      if (tuition <= 0) continue;
+      const remaining = Math.max(0, config.capValue - tuitionUsed);
+      if (remaining <= 0) break;
+      const basis = Math.min(tuition, remaining);
+      total += basis * config.rate;
+      tuitionUsed += basis;
+    }
+    return total > 0 ? total : null;
+  }
+
+  // Standard / yearly: sum all session commissions
+  let total = 0;
+  for (const session of sessions) {
+    const c = calculateSessionCommission(session, config);
+    if (c != null) total += c;
+  }
+  return total > 0 ? total : null;
+}
+
+function getCommissionModelLabel(config: CommissionConfig): string {
+  switch (config.model) {
+    case 'tfs': return 'TFS';
+    case 'full_summer_cap': return 'Full Summer Cap';
+    case 'fixed_fee': return 'Fixed Fee';
+    case 'yearly': return 'Yearly';
+    case 'standard': return 'Standard';
+  }
 }
 
 function getFilterLabel(schema: SchemaResponse | null, filter: Filter): string {
